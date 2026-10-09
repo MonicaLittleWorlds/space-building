@@ -17,7 +17,7 @@ export function buildSpace(input){
   const bounds=cells.reduce((b,c)=>({minX:Math.min(b.minX,c.x),maxX:Math.max(b.maxX,c.x),minZ:Math.min(b.minZ,c.z),maxZ:Math.max(b.maxZ,c.z)}),{minX:xs[0],maxX:xs[0],minZ:zs[0],maxZ:zs[0]});
   const edges=[];
   for(const c of cells.filter(c=>c.walkable))for(const [dx,dz] of [[1,0],[0,1]]){const next={level:l.id,x:c.x+dx,z:c.z+dz};if(walkable(project,next)&&!blocked(l,c,next))edges.push([key(c.x,c.z),key(next.x,next.z)]);}
-  return {id:l.id,name:l.name,bounds,cells,walkEdges:edges,walls:structuredClone(l.walls),items:structuredClone(l.items)};
+  return {id:l.id,name:l.name,...(l.rooms?{rooms:structuredClone(l.rooms)}:{}),bounds,cells,walkEdges:edges,walls:structuredClone(l.walls),items:structuredClone(l.items)};
  });
  const portals=project.stairs.flatMap(s=>[[s.a,s.b],[s.b,s.a]].map(([a,b])=>({id:s.id,level:a.level,cells:triggerCells(a).map(({x,z})=>({x,z})),destination:{level:b.level,x:b.x,z:b.z,angle:b.angle},activation:'route-end',suppressArrival:true})));
  return {format:'lw-space-build',version:1,requires:'lw-studio-game-importer-v1',project,scene:{projection:{halfWidth:64,halfHeight:32},background:['#9BECFC','#00C4F5'],entry:{...project.spawn,visible:false},levels,portals,stairs:structuredClone(project.stairs)},decor:decorManifest(project)};

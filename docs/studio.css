@@ -13,3 +13,7 @@ body[data-locked]>header,body[data-locked]>main,body[data-locked]>#web-app{displ
 .entry-card h1{font-size:27px;font-weight:500;margin:30px 0 12px}.entry-card p,.entry-card small{color:#b0c5bc;line-height:1.6}
 .entry-card input[type=password],.entry-card input[type=text]{width:100%;background:#102021;border:1px solid #739584;border-radius:8px;padding:13px;color:#e2efe7;font:16px system-ui}
 .entry-card button{width:100%;padding:13px;margin:12px 0}.entry-card small{display:block;font-size:12px}.entry-card #entry-message{min-height:24px;color:#efd1a8}.entry-reveal{display:flex;align-items:center;gap:6px}
+
+#room-name{width:100%;margin-top:8px;background:#253337;border:1px solid #435353;color:#d8e6df;padding:8px;border-radius:6px}
+
+#wall-opacity{display:block;width:100%;margin-top:10px;accent-color:#b5e7d2}#wall-opacity-value{display:block;margin-top:5px;color:#bde4d0}

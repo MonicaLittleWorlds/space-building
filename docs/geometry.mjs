@@ -168,23 +168,3 @@ export function stairwell(project,stair,rotation=0){
   return {lower,upper,opening,cells,faces,belowPoint};
 }
 
-// Preview-only visibility: collision and the saved collapse flag are unchanged.
-export function wallCollapseAt(w,{mode='auto',avatar=null,level,rotation=0}={}){
-  if(!w.collapse||w.kind==='fence'||mode==='full')return false;
-  if(mode==='cut')return true;
-  if(!avatar||avatar.level!==level)return false;
-  const [a,b]=wallEnds(w),dx=b[0]-a[0],dz=b[1]-a[1];
-  const along=Math.max(0,Math.min(1,((avatar.x-a[0])*dx+(avatar.z-a[1])*dz)/(dx*dx+dz*dz)));
-  if(Math.hypot(avatar.x-a[0]-along*dx,avatar.z-a[1]-along*dz)<=1.5)return true;
-  // A camera ray rises 64 pixels for each diagonal grid step. Test the
-  // avatar's width and body height so a foreground panel cannot conceal it.
-  const sx=[1,1,-1,-1][rotation%4],sz=[1,-1,-1,1][rotation%4];
-  for(const offset of [-.3,0,.3]){
-    const x=avatar.x+sz*offset,z=avatar.z-sx*offset;
-    const t=w.axis==='x'?(a[0]-x)/sx:(a[1]-z)/sz;
-    const cross=w.axis==='x'?z+sz*t:x+sx*t;
-    const low=w.axis==='x'?a[1]:a[0],high=w.axis==='x'?b[1]:b[0];
-    if(t>=0&&cross>=low&&cross<=high&&64*t+8<KIT.wallHeight)return true;
-  }
-  return false;
-}

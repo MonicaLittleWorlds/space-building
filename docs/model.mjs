@@ -9,6 +9,7 @@ export function demoProject() {
   const p=blankProject(); p.name='The blank-slate workshop';
   p.levels.push({id:'floor-2',name:'Upper floor',tiles:{},walls:{},items:[]});
   for(const [i,l] of p.levels.entries()) {
+    l.rooms=[{id:'main-room',name:'Main room',kind:'indoor',x:0,z:0,width:9,depth:7}];
     for(let x=0;x<9;x++) for(let z=0;z<7;z++) {
       if(i===1&&x>2&&x<6&&z>2&&z<5) continue;
       l.tiles[key(x,z)]={walk:true,place:true};
@@ -88,6 +89,10 @@ export function parseProject(value) {
     for(const [k,t] of Object.entries(l.tiles)) {const [x,z]=k.split(',').map(Number);if(!pos({x,z})||key(x,z)!==k||!t||typeof t.walk!=='boolean'||typeof t.place!=='boolean') fail();}
     for(const [k,w] of Object.entries(l.walls)) if(!pos(w)||!['x','z'].includes(w.axis)||!['wall','door','fence','window'].includes(w.kind)||typeof w.collapse!=='boolean'||typeof w.mount!=='boolean'||k!==edgeKey(w)) fail();
     for(const i of l.items) if(!pos(i)) fail();
+    if(l.rooms!==undefined){
+      if(!Array.isArray(l.rooms)||l.rooms.length>1000)fail();const roomIds=new Set();
+      for(const r of l.rooms){if(!pos(r)||typeof r.id!=='string'||r.id.length>80||roomIds.has(r.id)||typeof r.name!=='string'||r.name.length>80||!['indoor','outdoor'].includes(r.kind)||!Number.isSafeInteger(r.width)||r.width<1||!Number.isSafeInteger(r.depth)||r.depth<1||!Number.isSafeInteger(r.x+r.width)||!Number.isSafeInteger(r.z+r.depth))fail();roomIds.add(r.id);}
+    }
   }
   const sids=new Set(),occupied=new Set();
   for(const s of p.stairs) {if(!s||typeof s.id!=='string'||sids.has(s.id)||s.a?.level===s.b?.level) fail();sids.add(s.id);for(const e of [s.a,s.b]) {if(!pos(e)||!ids.has(e.level)||!['x','z'].includes(e.axis)||![0,90,180,270].includes(e.angle)) fail();appearance(e.appearance,['bodyColor','railColor']);if(e.width!==undefined&&![1,2].includes(e.width))fail();if(e.style!==undefined&&!['basic','masonry','timber','open'].includes(e.style))fail();if(e.depth!==undefined&&![2,3,4].includes(e.depth))fail();if(e.rise!==undefined&&![1,-1].includes(e.rise))fail();for(const c of triggerCells(e)) {if(!pos(c)||occupied.has(nodeKey(c))) fail();occupied.add(nodeKey(c));}}}
