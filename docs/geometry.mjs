@@ -120,3 +120,33 @@ export function fencePostOwners(w,walls){return wallEnds(w).map(p=>{
 });}
 
 export function itemFaces(item,rotation=0){const b=meshBuilder((u,v,h)=>[item.x+u,item.z+v,h],rotation,{top:'#a9c1b3',side:'#506b63',end:'#728b83'});b.box(-.3,.3,-.3,.3,0,35);return b.faces;}
+
+// Floor order determines which endpoint is the upstairs landing, even when
+// the connection was authored from upstairs first.
+export function stairLevels(project,stair){
+  return project.levels.findIndex(l=>l.id===stair.a.level)<project.levels.findIndex(l=>l.id===stair.b.level)
+    ?{lower:stair.a,upper:stair.b}:{lower:stair.b,upper:stair.a};
+}
+export function stairwell(project,stair,rotation=0){
+  const {lower,upper}=stairLevels(project,stair);
+  if(!upper.style)return null;
+  const width=upper.width===1?1:2,depth=upper.depth||2,sign=upper.rise===1?1:-1;
+  const point=(u,v,h=0)=>upper.axis==='x'?[upper.x-.5+u,upper.z+sign*(.5+v),h]:[upper.x+sign*(.5+v),upper.z-.5+u,h];
+  const opening=[point(0,0),point(width,0),point(width,depth),point(0,depth)];
+  // Reverse an ascending flight: its highest tread meets this landing, and
+  // its foot lies at the far end one storey below.
+  const foot={...upper,rise:-sign,
+    x:upper.x+(upper.axis==='z'?sign*(depth+1):0),z:upper.z+(upper.axis==='x'?sign*(depth+1):0)};
+  const faces=stairFaces(foot,rotation).map(f=>({...f,vertices:f.vertices.map(([x,z,h])=>[x,z,h-KIT.wallHeight])}));
+  for(let i=0;i<4;i++){const a=opening[i],b=opening[(i+1)%4];faces.push({part:'floor-cut-edge',color:i%2?'#839084':'#a0ab9c',vertices:[a,b,[b[0],b[1],-10],[a[0],a[1],-10]]});}
+  const cells=Array.from({length:width*depth},(_,i)=>({x:upper.x+(upper.axis==='x'?i%width:sign*(1+Math.floor(i/width))),z:upper.z+(upper.axis==='z'?i%width:sign*(1+Math.floor(i/width)))}));
+  // Map the connected room into the landing's local frame. Endpoints may
+  // have different positions and orientations in their authored floor plans.
+  const belowPoint=(x,z,h=0)=>{
+    const lowerSign=lower.rise===1?1:-1;
+    const u=lower.axis==='x'?x-lower.x+.5:z-lower.z+.5;
+    const v=(lower.axis==='x'?z-lower.z:x-lower.x)*lowerSign-.5;
+    return point(u*width/(lower.width===1?1:2),depth-v*depth/(lower.depth||2),h-KIT.wallHeight);
+  };
+  return {lower,upper,opening,cells,faces,belowPoint};
+}

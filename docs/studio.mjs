@@ -5,7 +5,7 @@ import {orderFaces} from './face-order.mjs';
 import {cameraGridPosition,inverseCameraGridPosition,gridToScreen} from './native-coordinate.mjs';
 import {key,nodeKey,edgeKey,levelOf,blankProject,demoProject,triggerCells,stairFlightCells,stairSolidAt,portalAt,walkable,canPlace,walkRoute,validate,parseProject} from './model.mjs';
 import kit from './kit.mjs';
-import {KIT,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
+import {KIT,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
 import {ensureDecor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
 import {joinReview,stairReview,doorReview} from './review.mjs';
 const $=id=>document.getElementById(id), svg=$('canvas'), NS='http://www.w3.org/2000/svg';
@@ -90,10 +90,36 @@ function render(){
   const corners=[[0,0],[svg.clientWidth,0],[0,svg.clientHeight],[svg.clientWidth,svg.clientHeight]].map(([x,y])=>gridAt(x,y));
   const minX=Math.floor(Math.min(...corners.map(p=>p.wx)))-1,maxX=Math.ceil(Math.max(...corners.map(p=>p.wx)))+1,minZ=Math.floor(Math.min(...corners.map(p=>p.wz)))-1,maxZ=Math.ceil(Math.max(...corners.map(p=>p.wz)))+1;
   if(!nativeBackground)for(let x=minX;x<=maxX;x++)for(let z=minZ;z<=maxZ;z++)tile(x,z,'transparent','#49615b',{'stroke-opacity':.35,'data-cell':key(x,z)});
+  const wells=project.stairs.filter(s=>stairLevels(project,s).upper.level===active).map(s=>stairwell(project,s,rotation)).filter(Boolean);
+  const holes=new Set(wells.flatMap(w=>w.cells.map(c=>key(c.x,c.z))));
   const largePieces=new Map();
-  for(const t of Object.values(l.tiles)){if(t.size!==2||!/^2:-?\d+,-?\d+$/.test(t.piece||''))continue;const [ox,oz]=t.piece.slice(2).split(',').map(Number);if([0,1,2,3].every(i=>{const c=l.tiles[key(ox+i%2,oz+Math.floor(i/2))];return c?.piece===t.piece&&c.material===t.material;}))largePieces.set(t.piece,{x:ox+.5,z:oz+.5,material:t.material||'blank'});}
-  for(const [k,t] of Object.entries(l.tiles)){const [x,z]=k.split(',').map(Number);if(!onScreen(x,z))continue;const overlay=$('overlay').value;let fill=kit.floorMaterials.find(m=>m.id===t.material)?.color||'#c1c7b7';if(overlay==='walk')fill=walkable(project,{level:active,x,z})?'#73b79f':'#b86f70';if(overlay==='place')fill=canPlace(project,{level:active,x,z})?'#79aebb':'#a16f68';if(overlay==='decor')fill=decorColor(t.decorGroup);tile(x,z,fill,fill,{'data-floor':k,'data-level':active});if((overlay==='none'||overlay==='mount')&&!largePieces.has(t.piece)){const [px,py]=projection(x,z),s=scale();element('image',{href:`assets/floor-${kit.floorMaterials.some(m=>m.id===t.material)?t.material:'blank'}-1x1.png`,x:px-64*s,y:py-32*s,width:128*s,height:64*s,'pointer-events':'none'});}const corners=diamond(x,z);for(const [i,[dx,dz]] of [[0,-1],[1,0],[0,1],[-1,0]].entries()){const neighbor=l.tiles[key(x+dx,z+dz)];if($('show-grid').checked&&(!t.piece||neighbor?.piece!==t.piece)){const a=projection(...corners[i]),b=projection(...corners[(i+1)%4]);element('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#6f8577','stroke-width':.6,opacity:.5,'pointer-events':'none'});}}}
+  for(const t of Object.values(l.tiles)){if(t.size!==2||!/^2:-?\d+,-?\d+$/.test(t.piece||''))continue;const [ox,oz]=t.piece.slice(2).split(',').map(Number);if([0,1,2,3].every(i=>{const c=l.tiles[key(ox+i%2,oz+Math.floor(i/2))];return !holes.has(key(ox+i%2,oz+Math.floor(i/2)))&&c?.piece===t.piece&&c.material===t.material;}))largePieces.set(t.piece,{x:ox+.5,z:oz+.5,material:t.material||'blank'});}
+  for(const [k,t] of Object.entries(l.tiles)){const [x,z]=k.split(',').map(Number);if(holes.has(k)||!onScreen(x,z))continue;const overlay=$('overlay').value;let fill=kit.floorMaterials.find(m=>m.id===t.material)?.color||'#c1c7b7';if(overlay==='walk')fill=walkable(project,{level:active,x,z})?'#73b79f':'#b86f70';if(overlay==='place')fill=canPlace(project,{level:active,x,z})?'#79aebb':'#a16f68';if(overlay==='decor')fill=decorColor(t.decorGroup);tile(x,z,fill,fill,{'data-floor':k,'data-level':active});if((overlay==='none'||overlay==='mount')&&!largePieces.has(t.piece)){const [px,py]=projection(x,z),s=scale();element('image',{href:`assets/floor-${kit.floorMaterials.some(m=>m.id===t.material)?t.material:'blank'}-1x1.png`,x:px-64*s,y:py-32*s,width:128*s,height:64*s,'pointer-events':'none'});}const corners=diamond(x,z);for(const [i,[dx,dz]] of [[0,-1],[1,0],[0,1],[-1,0]].entries()){const neighbor=l.tiles[key(x+dx,z+dz)];if($('show-grid').checked&&(!t.piece||neighbor?.piece!==t.piece)){const a=projection(...corners[i]),b=projection(...corners[(i+1)%4]);element('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#6f8577','stroke-width':.6,opacity:.5,'pointer-events':'none'});}}}
   if(['none','mount'].includes($('overlay').value))for(const piece of largePieces.values()){const [px,py]=projection(piece.x,piece.z),s=scale();element('image',{href:`assets/floor-${kit.floorMaterials.some(m=>m.id===piece.material)?piece.material:'blank'}-2x2.png`,x:px-128*s,y:py-64*s,width:256*s,height:128*s,'pointer-events':'none','data-piece-size':'2'});}
+  for(const [index,well] of wells.entries()){
+    const clipId=`stairwell-${index}`,clip=element('clipPath',{id:clipId});
+    element('polygon',{points:points(well.opening)},clip);
+    renderParent=element('g',{'clip-path':`url(#${clipId})`,'data-kind':'stairwell','data-level':active});
+    polygon(well.opening,{fill:'#35453f','pointer-events':'none'});
+    const below=levelOf(project,well.lower.level),screenOpening=well.opening.map(p=>projection(...p));
+    const bounds={left:Math.min(...screenOpening.map(p=>p[0])),right:Math.max(...screenOpening.map(p=>p[0])),top:Math.min(...screenOpening.map(p=>p[1])),bottom:Math.max(...screenOpening.map(p=>p[1]))};
+    for(const [id,t] of Object.entries(below.tiles)){
+      const [x,z]=id.split(',').map(Number),vertices=diamond(x,z).map(([a,b])=>well.belowPoint(a,b));
+      const screen=vertices.map(p=>projection(...p));
+      if(Math.max(...screen.map(p=>p[0]))<bounds.left||Math.min(...screen.map(p=>p[0]))>bounds.right||Math.max(...screen.map(p=>p[1]))<bounds.top||Math.min(...screen.map(p=>p[1]))>bounds.bottom)continue;
+      const fill=kit.floorMaterials.find(m=>m.id===t.material)?.color||'#c1c7b7';
+      polygon(vertices,{fill,stroke:fill,'stroke-width':.5,'data-kind':'floor-below','pointer-events':'none'});
+    }
+    const faces=well.faces.map(f=>({...f,attrs:{fill:f.color,stroke:f.color,'stroke-width':.25,'data-kind':'stairs-down','data-part':f.part,'pointer-events':'none'}}));
+    const origin=well.belowPoint(0,0),bx=well.belowPoint(1,0),bz=well.belowPoint(0,1),sx=[1,1,-1,-1][rotation],sz=[1,-1,-1,1][rotation];
+    const lowerSX=Math.sign((bx[0]-origin[0])*sx+(bx[1]-origin[1])*sz),lowerSZ=Math.sign((bz[0]-origin[0])*sx+(bz[1]-origin[1])*sz);
+    const lowerRotation=[0,1,2,3].find(r=>[1,1,-1,-1][r]===lowerSX&&[1,-1,-1,1][r]===lowerSZ);
+    for(const item of below.items)for(const face of itemFaces(item,lowerRotation))faces.push({vertices:face.vertices.map(p=>well.belowPoint(...p)),attrs:{fill:face.color,'data-kind':'item-below','pointer-events':'none'}});
+    for(const face of orderFaces(faces,rotation))polygon(face.vertices,face.attrs);
+    renderParent=null;
+    // A thin floor edge defines the cutout without covering the landing tread.
+    polygon(well.opening,{fill:'none',stroke:'#75877b','stroke-width':1.5,'pointer-events':'none','data-kind':'stairwell-edge'});
+  }
   for(const s of project.stairs)for(const end of [s.a,s.b])if(end.level===active)element('polygon',{points:points(stairArrow(end)),fill:'#f4f4dc',stroke:'#586a62','stroke-width':.65,opacity:.45,'pointer-events':'none','data-kind':'stair-arrow'});
   if(pending?.level===active)for(const c of triggerCells(pending))tile(c.x,c.z,'#dfbd69','#fff0b8');
   if(project.spawn?.level===active){const [x,y]=projection(project.spawn.x,project.spawn.z);text(x,y-5,'⚑',{fill:'#426c58','font-size':28});}
@@ -107,7 +133,7 @@ function render(){
     const posts=fencePostOwners(w,visible.walls);
     mesh(fenceFaces(w,rotation,posts),{'data-kind':'fence','data-level':active,'data-fence-style':w.fenceStyle});
   }
-  for(const stair of project.stairs)for(const end of [stair.a,stair.b])if(end.level===active&&end.style)mesh(stairFaces(end,rotation),{'data-kind':'stair','data-level':active,'data-stair-width':end.width,'data-stair-style':end.style});
+  for(const stair of project.stairs)for(const end of [stair.a,stair.b])if(end.level===active&&end.style&&stairLevels(project,stair).lower===end)mesh(stairFaces(end,rotation),{'data-kind':'stair','data-level':active,'data-stair-width':end.width,'data-stair-style':end.style});
   for(const i of l.items)mesh(itemFaces(i,rotation),{'data-kind':'item','data-level':active});
   if(playing&&avatar?.level===active){
     const sx=[1,1,-1,-1][rotation],sz=[1,-1,-1,1][rotation],point=(u,h)=>[avatar.x+sz*u,avatar.z-sx*u,h];
