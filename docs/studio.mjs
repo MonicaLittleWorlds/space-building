@@ -216,6 +216,7 @@ $('play').onclick=()=>{if(playing)stopPlay();else{if(!project.spawn||!walkable(p
 function replace(p){undo=[];redo=[];stopPlay();project=ensureDecor(p);refreshDecor();active=p.levels[0].id;pending=null;pan={x:0,y:0};changed();}
 async function openAsNew(p){if(library){library.save(project);const result=await library.create(p);p=result.project;}replace(p);refreshProjects();}
 $('new').onclick=()=>openAsNew(blankProject()).catch(e=>status(e.message));
+$('new-top').onclick=()=>$('new').click();
 $('demo').onclick=()=>openAsNew(demoProject()).catch(e=>status(e.message));
 async function saveData(data,name,kind='project'){if(window.lwDesktop){const saved=await window.lwDesktop.saveProject(name,JSON.stringify(data,null,2),kind);status(saved?'File saved.':'Save cancelled.');return;}const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(name.replace(/[^a-z0-9]+/gi,'-')||'lw-space')+({project:'.lwspace.json',decor:'.lwdecor.json',build:'.lwbuild.json'}[kind]);a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('File downloaded.');}
 $('export-build').onclick=()=>{try{if(pending)throw Error('Finish or cancel the pending stair connection before building.');saveData(buildSpace(project),project.name,'build').catch(e=>status(e.message));}catch(e){status(e.message);}};
