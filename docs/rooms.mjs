@@ -68,3 +68,8 @@ export function cutProfile(w,walls,selected){
  if(high[1])result.push([.6,26]);
  result.push([1,high[1]?KIT.wallHeight:26]);return result;
 }
+
+export function roomWallOpacity(w,selected,mode,visibility,back=false){
+ const faded=['auto-fade','transparent'].includes(mode)&&selected.has(edgeKey(w));
+ return faded?visibility:back?.3:1;
+}
