@@ -63,6 +63,18 @@ function meshBuilder(point,rotation,palette){
   return {faces,box};
 }
 export function fenceFaces(w,rotation=0,posts=[true,true]){
+  if(w.gate){
+    const [a,b]=wallEnds(w),du=[b[0]-a[0],b[1]-a[1]],normal=w.axis==='x'?[1,0]:[0,1];
+    const all=fenceFaces({...w,gate:false},rotation,posts),postFaces=all.filter(f=>f.part.startsWith('post'));
+    const leaf=fenceFaces({...w,gate:false},w.gateOpen?(rotation+1)%4:rotation,[false,false]).map(f=>({...f,part:'gate-'+f.part,vertices:f.vertices.map(([x,z,h])=>{
+      const u=(x-a[0])*du[0]+(z-a[1])*du[1],v=(x-a[0])*normal[0]+(z-a[1])*normal[1];
+      const length=.76*u;return w.gateOpen?[a[0]+du[0]*(.12-v)+normal[0]*length,a[1]+du[1]*(.12-v)+normal[1]*length,h+3]:[a[0]+du[0]*(.12+length)+normal[0]*v,a[1]+du[1]*(.12+length)+normal[1]*v,h+3];
+    })}));
+    const hardware=meshBuilder((u,v,h)=>[a[0]+du[0]*u+normal[0]*v,a[1]+du[1]*u+normal[1]*v,h],rotation,{top:'#819087',side:'#38483f',end:'#58665b'});
+    for(const h of [24,72])hardware.box(.045,.16,-.055,.055,h-3,h+3,h-3,h+3,'gate-hinge');
+    if(!w.gateOpen)hardware.box(.79,.96,-.066,.066,52,57,52,57,'gate-latch');
+    return [...postFaces,...leaf,...hardware.faces];
+  }
   const [a,b]=wallEnds(w),normal=w.axis==='x'?[1,0]:[0,1];
   const point=(u,v,h)=>[a[0]+(b[0]-a[0])*u+normal[0]*v,a[1]+(b[1]-a[1])*u+normal[1]*v,h];
   const style=w.fenceStyle||'rail';
@@ -164,7 +176,7 @@ function tintedPalette(base){return {top:tintColor(base,1.13),side:tintColor(bas
 export function fencePostOwners(w,walls){return wallEnds(w).map(p=>{
  const incident=walls.filter(o=>o.kind==='fence'&&wallEnds(o).some(q=>q[0]===p[0]&&q[1]===p[1]));
  const id=o=>`${o.axis}:${o.x},${o.z}`;if(incident.map(id).sort()[0]!==id(w))return false;
- if(incident.length!==2||incident[0].axis!==incident[1].axis||incident[0].fenceStyle!==incident[1].fenceStyle)return true;
+ if(incident.some(o=>o.gate)||incident.length!==2||incident[0].axis!==incident[1].axis||incident[0].fenceStyle!==incident[1].fenceStyle)return true;
  const along=w.axis==='x'?p[1]:p[0];return (Math.floor(along)+1)%2===0;
 });}
 

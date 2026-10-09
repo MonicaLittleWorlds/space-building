@@ -50,7 +50,7 @@ export async function requireCurrentVersion(){
    if(!navigator.onLine)throw Error('Connect to the internet to verify the current app version.');
    const current=await checkRequiredVersion(config.build,new URL('./required-version.json',import.meta.url));
    if(!navigator.onLine)throw Error('Reconnect to continue building.');
-   if(current){unlock();return;}
+   if(current){unlock();return true;}
    await pause('An update is required','Update Space Studio to continue building.',true);
   }catch(e){await pause('Internet check required',e.message);}
   finally{busy=false;retry.disabled=false;}
@@ -74,5 +74,5 @@ export async function requireCurrentVersion(){
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)check();});
  setInterval(()=>{if(!document.hidden)check();},60000);
  await check();await opening;
- return {setProjectActions(value){actions=value;backup.hidden=!locked;}};
+ return {check,setProjectActions(value){actions=value;backup.hidden=!locked;}};
 }
