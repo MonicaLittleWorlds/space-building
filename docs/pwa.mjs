@@ -8,12 +8,13 @@ export async function initWebApp(saveForReload){
  window.addEventListener('appinstalled',()=>{install.hidden=true;note.textContent='Installed · save project files to keep a backup';});
  const online=()=>{note.textContent=navigator.onLine?'Space Studio · preparing offline access…':'Offline · reconnect for updates';};online();
  if(!('serviceWorker' in navigator)){note.textContent='Browser editing available · installation requires a supported browser';return;}
+ navigator.serviceWorker.addEventListener('message',e=>{if(e.data?.type==='OFFLINE_PROGRESS')note.textContent=`Preparing offline access · ${e.data.done}/${e.data.total} files`;if(e.data?.type==='OFFLINE_SETUP_FAILED')note.textContent='Offline setup interrupted · reconnect and reload to retry';});
  const showUpdate=()=>{if(registration?.waiting){update.hidden=false;note.textContent='Update ready · your design will be saved before reload';}};
  update.onclick=()=>{try{saveForReload();registration?.waiting?.postMessage({type:'ACTIVATE_UPDATE'});}catch(e){note.textContent='Update paused: '+e.message;}};
  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(reloading)return;try{saveForReload();reloading=true;location.reload();}catch(e){note.textContent='Save your project file before reloading: '+e.message;}});
  try{
   registration=await navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'});
-  await navigator.serviceWorker.ready;
+  await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(Error('Offline setup timed out')),60000))]);
   const ready=()=>{note.textContent=navigator.onLine?'Offline ready · no account needed':'Offline · your editor is ready';showUpdate();};ready();
   window.addEventListener('online',()=>{ready();registration.update().catch(()=>{});});window.addEventListener('offline',ready);
   registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker?.addEventListener('statechange',()=>{if(worker.state==='installed')ready();});});showUpdate();
