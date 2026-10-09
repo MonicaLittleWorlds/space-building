@@ -24,3 +24,7 @@ Drafts stay on the current browser/device and are not uploaded to a server. To m
 Game importing, in-game rendering, and in-game décor integration remain in development. Export checked build prepares structured data; it does not install a space in the game.
 
 The website files are in `docs/`; GitHub Pages publishes from `main` / `docs`. Native desktop packages remain separate preview work.
+
+## Independent projects
+
+Each tab has its own project session. Use **My Projects · This Browser** to reopen local projects. Opening a project already being edited in another tab makes an independent tab copy. New blank spaces and opened files create new projects instead of replacing the previous autosave. Earlier single drafts are preserved during migration. Projects remain on this browser/device, never in GitHub branches. Use Save project to download a .lwspace.json file and send it to another person; they can use Open to load it. People sharing the same browser profile can see its local project list.

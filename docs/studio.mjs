@@ -1,3 +1,4 @@
+import {ProjectLibrary} from './projects.mjs';
 import {initWebApp} from './pwa.mjs';
 import {buildSpace,openSpaceFile} from './build.mjs';
 import {orderFaces} from './face-order.mjs';
@@ -10,14 +11,20 @@ import {joinReview,stairReview,doorReview} from './review.mjs';
 const $=id=>document.getElementById(id), svg=$('canvas'), NS='http://www.w3.org/2000/svg';
 let project=demoProject(), savedMessage='Sample loaded. Your edits autosave locally.';
 const reviewType=new URLSearchParams(location.search).get('review'),reviewMode=['joins','stairs','doors'].includes(reviewType);
-try {const saved=reviewMode?null:(sessionStorage.getItem('lw-update-recovery')||localStorage.getItem('lw-space-studio-v1'));sessionStorage.removeItem('lw-update-recovery');if(saved){project=parseProject(saved);savedMessage='Restored your local draft.';}} catch {savedMessage='Saved draft could not be read. Sample loaded.';}
+let library=null;
+if(!reviewMode)try{
+ library=new ProjectLibrary(localStorage,sessionStorage,navigator.locks);
+ let recovery=null;try{const raw=sessionStorage.getItem('lw-update-recovery');if(raw)recovery=parseProject(raw);}catch{}
+ const opened=await library.start(project,recovery);project=opened.project;sessionStorage.removeItem('lw-update-recovery');savedMessage=opened.copied?'Opened a separate tab copy.':'Your independent project session is ready.';
+}catch{library=null;savedMessage='Local storage unavailable. Save project files to keep your work.';}
+
 if(reviewMode){project=reviewType==='stairs'?stairReview():reviewType==='doors'?doorReview():joinReview();savedMessage='Join review sample · your draft is unchanged.';}
 ensureDecor(project);
 let active=project.levels[0].id,rotation=0,tool='floor',pending=null,playing=false,avatar=null,undo=[],redo=[],drag=false,painted=new Set(),timer=null,pan={x:0,y:0},panStart=null;
 const tools=[['floor','◇','Floor'],['wall','▱','Wall'],['door','Π','Doorway'],['window','⊞','Window wall'],['fence','╫','Fence'],['stairs','▤','Stairs'],['item','▣','Test item'],['spawn','⚑','Entry'],['erase','⌫','Erase']];
 const clone=()=>structuredClone(project);
 function status(s){$('status').textContent=s;}
-function persist(){if(reviewMode)return;try{localStorage.setItem('lw-space-studio-v1',JSON.stringify(project));}catch{status('Browser storage unavailable. Use Save project to keep this design.');}}
+function persist(){if(reviewMode)return;try{if(!library)throw Error('Storage unavailable');library.save(project);}catch{status('Browser storage unavailable. Use Save project to keep this design.');}}
 function history(){undo.push(clone());if(undo.length>80)undo.shift();redo=[];}
 function changed(){persist();render();}
 let renderParent=null;
@@ -173,13 +180,14 @@ $('cancel-stair').onclick=()=>{pending=null;render();};
 $('add-level').onclick=()=>{history();const id=`floor-${crypto.randomUUID()}`;project.levels.push({id,name:`Floor ${project.levels.length+1}`,tiles:{},walls:{},items:[]});active=id;changed();};
 function stopPlay(){clearInterval(timer);timer=null;playing=false;avatar=null;}
 $('play').onclick=()=>{if(playing)stopPlay();else{if(!project.spawn||!walkable(project,project.spawn)){status('Set a valid entry point before starting the walk test.');return;}playing=true;avatar={...project.spawn};active=avatar.level;pending=null;}render();};
-function replace(p){history();stopPlay();project=ensureDecor(p);refreshDecor();active=p.levels[0].id;pending=null;pan={x:0,y:0};changed();}
-$('new').onclick=()=>{if(confirm('Start a blank project? Your current design remains available in Undo.'))replace(blankProject());};
-$('demo').onclick=()=>{if(confirm('Open the sample? Your current design remains available in Undo.'))replace(demoProject());};
+function replace(p){undo=[];redo=[];stopPlay();project=ensureDecor(p);refreshDecor();active=p.levels[0].id;pending=null;pan={x:0,y:0};changed();}
+async function openAsNew(p){if(library){library.save(project);const result=await library.create(p);p=result.project;}replace(p);refreshProjects();}
+$('new').onclick=()=>openAsNew(blankProject()).catch(e=>status(e.message));
+$('demo').onclick=()=>openAsNew(demoProject()).catch(e=>status(e.message));
 async function saveData(data,name,kind='project'){if(window.lwDesktop){const saved=await window.lwDesktop.saveProject(name,JSON.stringify(data,null,2),kind);status(saved?'File saved.':'Save cancelled.');return;}const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(name.replace(/[^a-z0-9]+/gi,'-')||'lw-space')+({project:'.lwspace.json',decor:'.lwdecor.json',build:'.lwbuild.json'}[kind]);a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('File downloaded.');}
 $('export-build').onclick=()=>{try{if(pending)throw Error('Finish or cancel the pending stair connection before building.');saveData(buildSpace(project),project.name,'build').catch(e=>status(e.message));}catch(e){status(e.message);}};
 $('save').onclick=()=>saveData(project,project.name).catch(e=>status(e.message));
-$('load').onclick=async()=>{if(window.lwDesktop){try{const raw=await window.lwDesktop.openProject();if(raw){replace(openSpaceFile(raw));status('Project loaded.');}}catch(e){status(e.message);}}else $('file').click();};$('file').onchange=async()=>{const f=$('file').files[0];if(!f)return;try{if(f.size>32_000_000)throw Error('Project is too large (maximum 32 MB).');const p=openSpaceFile(await f.text());replace(p);status('Project loaded.');}catch(e){status(e.message);}$('file').value='';};
+$('load').onclick=async()=>{if(window.lwDesktop){try{const raw=await window.lwDesktop.openProject();if(raw){await openAsNew(openSpaceFile(raw));status('Project loaded.');}}catch(e){status(e.message);}}else $('file').click();};$('file').onchange=async()=>{const f=$('file').files[0];if(!f)return;try{if(f.size>32_000_000)throw Error('Project is too large (maximum 32 MB).');const p=openSpaceFile(await f.text());await openAsNew(p);status('Project loaded.');}catch(e){status(e.message);}$('file').value='';};
 for(const [id,materials] of [['floor-material',kit.floorMaterials],['wall-material',kit.wallMaterials]])for(const m of materials){const o=document.createElement('option');o.value=m.id;o.textContent=m.name;$(id).append(o);}
 $('kit-count').textContent=`${kit.assets.length} original sprites · ${kit.floorMaterials.length} floor materials · ${kit.wallMaterials.length} wall finishes · 5 fence styles · single/double stairs`;
 function refreshDecor(){const old=$('decor-group').value;$('decor-group').replaceChildren();const none=document.createElement('option');none.value='';none.textContent='Fixed material (not linked)';$('decor-group').append(none);for(const g of project.decorGroups.filter(g=>g.kind===$('decor-kind').value)){const o=document.createElement('option');o.value=g.id;o.textContent=g.name;$('decor-group').append(o);}if([...$('decor-group').options].some(o=>o.value===old))$('decor-group').value=old;}
@@ -211,4 +219,11 @@ $('reset-piece').onclick=()=>{if(playing)return;const t=decorPieces(project,acti
 refreshDecor();
 new ResizeObserver(render).observe(svg);render();status(savedMessage);
 
-initWebApp(()=>{if(reviewMode)return;if(pending)throw Error('Finish or cancel your stair connection first.');project.name=$('name').value.trim().slice(0,120)||'Untitled LW space';const data=JSON.stringify(project);sessionStorage.setItem('lw-update-recovery',data);localStorage.setItem('lw-space-studio-v1',data);});
+initWebApp(()=>{if(reviewMode)return;if(pending)throw Error('Finish or cancel your stair connection first.');project.name=$('name').value.trim().slice(0,120)||'Untitled LW space';const data=JSON.stringify(project);sessionStorage.setItem('lw-update-recovery',data);if(!library)throw Error('Save your project file before updating.');library.save(project);});
+
+function refreshProjects(){const picker=$('project-picker');picker.replaceChildren();if(!library){picker.disabled=true;$('open-project').disabled=true;return;}for(const r of library.list()){const o=document.createElement('option');o.value=r.id;o.textContent=(r.project.name||'Untitled LW space')+' · '+new Date(r.updated).toLocaleString();picker.append(o);}picker.value=library.current;}
+$('open-project').onclick=async()=>{if(!library)return;try{const id=$('project-picker').value;library.save(project);const result=await library.open(id);replace(result.project);refreshProjects();status(result.copied?'That project is open elsewhere. You are editing an independent tab copy.':'Project opened in this tab.');}catch(e){status(e.message);}};
+$('refresh-projects').onclick=refreshProjects;
+window.addEventListener('storage',e=>{if(e.key?.startsWith('lw-studio-project:'))refreshProjects();});
+$('name').addEventListener('change',refreshProjects);
+refreshProjects();
