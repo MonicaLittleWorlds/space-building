@@ -3,9 +3,26 @@ export const KIT={halfWidth:64,halfHeight:32,wallHeight:3.5*Math.sqrt(2*64**2)*M
 export const MATERIALS=['blank','grass','pavement','stone'];
 export function brushCells(x,z,size=2){const ox=Math.floor(x/size)*size,oz=Math.floor(z/size)*size;return Array.from({length:size*size},(_,i)=>({x:ox+i%size,z:oz+Math.floor(i/size),piece:`${size}:${ox},${oz}`,size}));}
 export function wallEnds(w){return w.axis==='x'?[[w.x-.5,w.z-.5],[w.x-.5,w.z+.5]]:[[w.x-.5,w.z-.5],[w.x+.5,w.z-.5]];}
-export function wallSide(w,rotation){const angle=rotation*Math.PI/2,n=w.axis==='x'?[1,0]:[0,1],sign=w.facing===-1?-1:1;const rx=(n[0]*Math.cos(angle)-n[1]*Math.sin(angle))*sign,rz=(n[0]*Math.sin(angle)+n[1]*Math.cos(angle))*sign;return rx+rz>=0?'front':'back';}
+export function wallFacing(w,tiles={}){
+  if(w.facing===1||w.facing===-1)return w.facing;
+  const positive=!!tiles[`${w.x},${w.z}`],negative=!!tiles[`${w.x-(w.axis==='x'?1:0)},${w.z-(w.axis==='z'?1:0)}`];
+  if(positive!==negative)return positive?1:-1;
+  return 1;
+}
+export function wallSide(w,rotation){
+  const view=((rotation%4)+4)%4,normal=w.axis==='x'?[1,1,-1,-1][view]:[1,-1,-1,1][view];
+  return normal*(w.facing===-1?-1:1)>0?'front':'back';
+}
+export function wallSurfaceEnds(w,rotation,corners=[]){
+  const view=((rotation%4)+4)%4,side=w.axis==='x'?[1,1,-1,-1][view]:[1,-1,-1,1][view],t=KIT.wallThickness/2;
+  return wallCapEnds(w,corners).map(([x,z])=>[x+(w.axis==='x'?side*t:0),z+(w.axis==='z'?side*t:0)]);
+}
+export function wallEndVisible(w,index,rotation){
+  const view=((rotation%4)+4)%4,tangent=w.axis==='x'?[1,-1,-1,1][view]:[1,1,-1,-1][view];
+  return tangent*(index===0?-1:1)>0;
+}
 export function wallEndExposed(w,end,walls){const p=wallEnds(w)[end];return !Object.values(walls).some(other=>other!==w&&(other.kind==='fence')===(w.kind==='fence')&&wallEnds(other).some(q=>q[0]===p[0]&&q[1]===p[1]));}
-export function wallRenderHeight(w,cut=false){return w.kind==='fence'?KIT.fenceHeight:cut&&w.collapse?26:KIT.wallHeight;}
+export function wallRenderHeight(w,cut=false){return w.kind==='fence'?KIT.fenceHeight:(typeof cut==='function'?cut(w):cut)&&w.collapse?26:KIT.wallHeight;}
 // Corner pieces are derived per floor, so drawing, erasing, undo, and loading
 // cannot leave an orphaned corner. Straight runs never produce a corner.
 export function wallCorners(walls,cut=false){
@@ -149,4 +166,25 @@ export function stairwell(project,stair,rotation=0){
     return point(u*width/(lower.width===1?1:2),depth-v*depth/(lower.depth||2),h-KIT.wallHeight);
   };
   return {lower,upper,opening,cells,faces,belowPoint};
+}
+
+// Preview-only visibility: collision and the saved collapse flag are unchanged.
+export function wallCollapseAt(w,{mode='auto',avatar=null,level,rotation=0}={}){
+  if(!w.collapse||w.kind==='fence'||mode==='full')return false;
+  if(mode==='cut')return true;
+  if(!avatar||avatar.level!==level)return false;
+  const [a,b]=wallEnds(w),dx=b[0]-a[0],dz=b[1]-a[1];
+  const along=Math.max(0,Math.min(1,((avatar.x-a[0])*dx+(avatar.z-a[1])*dz)/(dx*dx+dz*dz)));
+  if(Math.hypot(avatar.x-a[0]-along*dx,avatar.z-a[1]-along*dz)<=1.5)return true;
+  // A camera ray rises 64 pixels for each diagonal grid step. Test the
+  // avatar's width and body height so a foreground panel cannot conceal it.
+  const sx=[1,1,-1,-1][rotation%4],sz=[1,-1,-1,1][rotation%4];
+  for(const offset of [-.3,0,.3]){
+    const x=avatar.x+sz*offset,z=avatar.z-sx*offset;
+    const t=w.axis==='x'?(a[0]-x)/sx:(a[1]-z)/sz;
+    const cross=w.axis==='x'?z+sz*t:x+sx*t;
+    const low=w.axis==='x'?a[1]:a[0],high=w.axis==='x'?b[1]:b[0];
+    if(t>=0&&cross>=low&&cross<=high&&64*t+8<KIT.wallHeight)return true;
+  }
+  return false;
 }
