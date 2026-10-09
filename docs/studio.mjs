@@ -9,13 +9,13 @@ import {cameraGridPosition,inverseCameraGridPosition,gridToScreen} from './nativ
 import {key,nodeKey,edgeKey,levelOf,blankProject,demoProject,triggerCells,stairFlightCells,stairSolidAt,portalAt,walkable,canPlace,walkRoute,validate,parseProject} from './model.mjs';
 import kit from './kit.mjs';
 import {KIT,wallFacing,wallSurfaceEnds,wallEndVisible,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
-import {ensureDecor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
-import {joinReview,stairReview,doorReview,roomReview} from './review.mjs';
+import {ensureDecor,decorGroupsFor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
+import {joinReview,stairReview,doorReview,roomReview,fenceReview} from './review.mjs';
 const versionGate=await requireCurrentVersion();
 await requireUniversalCode();
 const $=id=>document.getElementById(id), svg=$('canvas'), NS='http://www.w3.org/2000/svg';
 let project=demoProject(), savedMessage='Sample loaded. Your edits autosave locally.';
-const reviewType=new URLSearchParams(location.search).get('review'),reviewMode=['joins','stairs','doors','rooms'].includes(reviewType);
+const reviewType=new URLSearchParams(location.search).get('review'),reviewMode=['joins','stairs','doors','rooms','fences'].includes(reviewType);
 let library=null;
 if(!reviewMode)try{
  library=new ProjectLibrary(localStorage,sessionStorage,navigator.locks);
@@ -23,7 +23,7 @@ if(!reviewMode)try{
  const opened=await library.start(project,recovery);project=opened.project;sessionStorage.removeItem('lw-update-recovery');savedMessage=opened.copied?'Opened a separate tab copy.':'Your independent project session is ready.';
 }catch{library=null;savedMessage='Local storage unavailable. Save project files to keep your work.';}
 
-if(reviewMode){project=reviewType==='rooms'?roomReview():reviewType==='stairs'?stairReview():reviewType==='doors'?doorReview():joinReview();savedMessage='Join review sample · your draft is unchanged.';}
+if(reviewMode){project=reviewType==='fences'?fenceReview():reviewType==='rooms'?roomReview():reviewType==='stairs'?stairReview():reviewType==='doors'?doorReview():joinReview();savedMessage='Join review sample · your draft is unchanged.';}
 ensureDecor(project);
 let active=project.levels[0].id,rotation=0,tool='floor',pending=null,playing=false,avatar=null,undo=[],redo=[],drag=false,painted=new Set(),timer=null,pan={x:0,y:0},panStart=null,panMode=false;
 let roomStart=null,roomCache=new WeakMap(),cutSelection=new Set();
@@ -32,7 +32,7 @@ const clone=()=>structuredClone(project);
 function status(s){$('status').textContent=s;}
 function persist(){if(reviewMode)return;try{if(!library)throw Error('Storage unavailable');library.save(project);}catch{status('Browser storage unavailable. Use Save project to keep this design.');}}
 function history(){undo.push(clone());if(undo.length>80)undo.shift();redo=[];}
-function changed(){roomCache=new WeakMap();persist();render();}
+function changed(){ensureDecor(project);roomCache=new WeakMap();persist();render();}
 let renderParent=null,viewMetrics=null;
 function element(tag,attrs={},parent=renderParent||svg){const el=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);parent.append(el);return el;}
 function text(x,y,value,attrs={}){const el=element('text',{x,y,'text-anchor':'middle','font-family':'system-ui','font-size':11,'pointer-events':'none',...attrs});el.textContent=value;return el;}
@@ -161,7 +161,7 @@ function render(){
   const mesh=(faces,attrs)=>{for(const face of faces)polygon(face.vertices,{fill:face.color,stroke:face.color,'stroke-width':.25,'pointer-events':'none','data-part':face.part,...attrs});};
   for(const w of visible.walls.filter(w=>w.kind==='fence'&&onScreen(w.x,w.z,KIT.fenceHeight))){
     const posts=fencePostOwners(w,visible.walls);
-    mesh(fenceFaces(w,rotation,posts),{'data-kind':'fence','data-level':active,'data-fence-style':w.fenceStyle});
+    mesh(fenceFaces(w,rotation,posts),{'data-kind':'fence','data-level':active,'data-fence-style':w.fenceStyle,...($('overlay').value==='decor'?{fill:decorColor(w.decorGroup),stroke:decorColor(w.decorGroup)}:{})});
   }
   for(const stair of project.stairs)for(const end of [stair.a,stair.b])if(end.level===active&&end.style&&stairLevels(project,stair).lower===end)mesh(stairFaces(end,rotation),{'data-kind':'stair','data-level':active,'data-stair-width':end.width,'data-stair-style':end.style});
   for(const i of l.items)mesh(itemFaces(i,rotation),{'data-kind':'item','data-level':active});
@@ -190,11 +190,11 @@ function render(){
   [...$('views').children].forEach((b,i)=>b.classList.toggle('active',i===rotation));
   $('wall-opacity-value').textContent=$('wall-opacity').value+'% visible';
   $('pan').classList.toggle('active',panMode);$('pan').setAttribute('aria-pressed',String(panMode));svg.style.cursor=panStart?'grabbing':panMode?'grab':'';
-  $('undo').disabled=!undo.length||playing;$('redo').disabled=!redo.length||playing;$('add-level').disabled=playing;$('play').textContent=playing?'■ End walk test':'▶ Walk test';viewMetrics=null;
+  refreshDecor();$('undo').disabled=!undo.length||playing;$('redo').disabled=!redo.length||playing;$('add-level').disabled=playing;$('play').textContent=playing?'■ End walk test':'▶ Walk test';viewMetrics=null;
 }
 function nearestEdge(p){const x=Math.round(p.wx),z=Math.round(p.wz),dx=p.wx-x,dz=p.wz-z;return Math.abs(dx)>Math.abs(dz)?{axis:'x',x:x+(dx>0?1:0),z}:{axis:'z',x,z:z+(dz>0?1:0)};}
 function edit(e){const p=unproject(e),x=Math.round(p.wx),z=Math.round(p.wz),n={level:active,x,z},l=levelOf(project,active),edge=nearestEdge(p);if(!Number.isSafeInteger(x)||!Number.isSafeInteger(z))return;const stamp=tool+(['wall','door','window','fence','face'].includes(tool)?edgeKey(edge):key(x,z));if(painted.has(stamp))return;painted.add(stamp);
-  const groupFor=kind=>project.decorGroups.some(g=>g.id===$('decor-group').value&&g.kind===kind)?$('decor-group').value:null;
+  const groupFor=kind=>project.decorGroups.some(g=>g.id===$('decor-group').value&&g.kind===kind&&g.level===active&&g.area===$('decor-area').value)?$('decor-group').value:null;
   if(tool==='room'){
     if(!l.tiles[key(x,z)]){status('Choose a floor tile for each room corner.');return;}
     if(!roomStart||roomStart.level!==active){roomStart={level:active,x,z};render();return;}
@@ -258,10 +258,19 @@ $('save').onclick=()=>saveData(project,project.name).catch(e=>status(e.message))
 $('load').onclick=async()=>{if(window.lwDesktop){try{const raw=await window.lwDesktop.openProject();if(raw){await openAsNew(openSpaceFile(raw));status('Project loaded.');}}catch(e){status(e.message);}}else $('file').click();};$('file').onchange=async()=>{const f=$('file').files[0];if(!f)return;try{if(f.size>32_000_000)throw Error('Project is too large (maximum 32 MB).');const p=openSpaceFile(await f.text());await openAsNew(p);status('Project loaded.');}catch(e){status(e.message);}$('file').value='';};
 for(const [id,materials] of [['floor-material',kit.floorMaterials],['wall-material',kit.wallMaterials]])for(const m of materials){const o=document.createElement('option');o.value=m.id;o.textContent=m.name;$(id).append(o);}
 $('kit-count').textContent=`${kit.assets.length} original sprites · ${kit.floorMaterials.length} floor materials · ${kit.wallMaterials.length} wall finishes · 5 fence styles · single/double stairs`;
-function refreshDecor(){const old=$('decor-group').value;$('decor-group').replaceChildren();const none=document.createElement('option');none.value='';none.textContent='Fixed material (not linked)';$('decor-group').append(none);for(const g of project.decorGroups.filter(g=>g.kind===$('decor-kind').value)){const o=document.createElement('option');o.value=g.id;o.textContent=g.name;$('decor-group').append(o);}if([...$('decor-group').options].some(o=>o.value===old))$('decor-group').value=old;}
+function refreshDecor(){
+ const area=$('decor-area');area.querySelector('[value="outside"]').disabled=active!==project.levels[0].id;if(active!==project.levels[0].id&&area.value==='outside')area.value='inside';
+ $('decor-scope').textContent=(area.value==='outside'?'Outside · ':'Inside · ')+(levelOf(project,active)?.name||'');
+ const old=$('decor-group').value;$('decor-group').replaceChildren();const none=document.createElement('option');none.value='';none.textContent='Fixed material (not linked)';$('decor-group').append(none);
+ for(const g of decorGroupsFor(project,active,area.value,$('decor-kind').value)){const o=document.createElement('option');o.value=g.id;o.textContent=g.name;$('decor-group').append(o);}
+ if([...$('decor-group').options].some(o=>o.value===old))$('decor-group').value=old;
+ const group=project.decorGroups.find(g=>g.id===$('decor-group').value);$('decor-editable').disabled=!group||playing;$('decor-editable').checked=!!group?.editable;
+}
+$('decor-area').onchange=refreshDecor;$('decor-group').onchange=refreshDecor;
+$('decor-editable').onchange=()=>{const g=project.decorGroups.find(g=>g.id===$('decor-group').value);if(!g||playing)return;history();g.editable=$('decor-editable').checked;changed();};
 $('decor-kind').onchange=refreshDecor;
 $('paint-decor').onclick=()=>{if(playing)return;tool='decor';$('overlay').value='decor';pending=null;render();};
-$('add-decor').onclick=()=>{if(playing)return;const name=prompt('Name this décor group');if(!name?.trim())return;history();const g={id:'lw_'+crypto.randomUUID().replaceAll('-',''),name:name.trim().slice(0,80),kind:$('decor-kind').value,editable:true};project.decorGroups.push(g);refreshDecor();$('decor-group').value=g.id;changed();};
+$('add-decor').onclick=()=>{if(playing)return;const name=prompt('Name this décor group');if(!name?.trim())return;history();const g={id:'lw_'+crypto.randomUUID().replaceAll('-',''),name:name.trim().slice(0,80),kind:$('decor-kind').value,editable:true,level:active,area:$('decor-area').value};project.decorGroups.push(g);refreshDecor();$('decor-group').value=g.id;changed();};
 $('export-decor').onclick=()=>saveData(decorManifest(project),project.name+'-decor-mapping','decor').catch(e=>status(e.message));
 let pieceSelection='';
 function refreshPieces(){

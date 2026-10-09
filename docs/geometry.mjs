@@ -70,7 +70,7 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
   const {faces,box}=meshBuilder(point,rotation,palette);
   if(style==='slat')for(const y of [22,40,58,76,94]){box(0,1,-.038,.038,y-13,y,y-13,y,'slat');box(0,1,.038,.04,y-3,y-2,y-3,y-2,'grain',{...palette,end:tintColor(palette.end,.88)});}
   else {
-    for(const y of [25,70])box(0,1,-.045,.045,y-9,y,y-9,y,'rail');
+    for(const y of [25,70]){const t=style==='metal'?.023:.04,d=style==='metal'?4:8;box(0,1,-t,t,y-d,y,y-d,y,'rail');}
     if(style==='rail'){const brace=(u,v,h)=>point(u,v,h);for(const v of [-.035,.035])faces.push({part:'brace',color:palette.side,vertices:[brace(.06,v,23),brace(.94,v,61),brace(.94,v,68),brace(.06,v,30)]});faces.push({part:'brace',color:palette.top,vertices:[brace(.06,-.035,30),brace(.94,-.035,68),brace(.94,.035,68),brace(.06,.035,30)]});}
     if(style==='privacy'){for(let i=0;i<6;i++){const u=i/6,color=tintedPalette(tintColor(palette.end,1+(i%3-1)*.035));box(u+.004,u+1/6-.004,-.082,-.018,4,91,4,91,'board',color);for(const g of [.03,.10])box(u+g,u+g+.006,-.084,-.082,13,81,13,81,'grain',{...color,side:tintColor(color.side,.94),end:tintColor(color.end,.93)});}box(0,1,-.1,.01,91,96,91,96,'coping');}
     if(style==='picket')for(let i=0;i<4;i++){const u=.08+i*.24;box(u,u+.12,-.075,-.018,5,79,5,79,'picket');
@@ -80,9 +80,41 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
         faces.push({part:'tip',color:palette.end,vertices:[p(lo,-.075,79),p(hi,-.075,79),p(hi,-.075,right),p(lo,-.075,left)]},{part:'tip',color:palette.end,vertices:[p(lo,-.018,79),p(hi,-.018,79),p(hi,-.018,right),p(lo,-.018,left)]},{part:'tip',color:palette.top,vertices:[p(lo,-.075,left),p(hi,-.075,right),p(hi,-.018,right),p(lo,-.018,left)]});
       }
     }
-    if(style==='metal')for(const u of [.15,.38,.61,.84]){box(u,u+.022,-.018,.018,8,89,8,89,'baluster');for(const v of [-.019,.019])faces.push({part:'spear',color:palette.end,vertices:[point(u-.015,v,88),point(u+.037,v,88),point(u+.011,v,98)]});}
+    if(style==='metal')for(const u of [.1,.23,.36,.49,.62,.75,.88]){box(u,u+.022,-.018,.018,8,89,8,89,'baluster');for(const v of [-.019,.019])faces.push({part:'spear',color:palette.end,vertices:[point(u-.015,v,88),point(u+.037,v,88),point(u+.011,v,98)]});}
   }
-  for(const [i,show] of posts.entries())if(show){const t=style==='metal'?.045:.075;box(i-t,i+t,-t,t,0,98,0,98,'post');box(i-t-.009,i+t+.009,-t-.009,t+.009,97,99,97,99,'post-cap');for(const [dx,dz,ex,ez] of [[-t,-t,t,-t],[t,-t,t,t],[t,t,-t,t],[-t,t,-t,-t]])faces.push({part:'post-cap',color:palette.top,vertices:[point(i+dx,dz,99),point(i+ex,ez,99),point(i,0,104)]});}
+  for(const [i,show] of posts.entries())if(show){const t=style==='metal'?.035:.06;box(i-t,i+t,-t,t,0,98,0,98,'post');box(i-t-.009,i+t+.009,-t-.009,t+.009,97,99,97,99,'post-cap');for(const [dx,dz,ex,ez] of [[-t,-t,t,-t],[t,-t,t,t],[t,t,-t,t],[-t,t,-t,-t]])faces.push({part:'post-cap',color:palette.top,vertices:[point(i+dx,dz,99),point(i+ex,ez,99),point(i,0,104)]});}
+  const detail=(u,v,h,du,dh,color,part)=>faces.push({part,color,vertices:[point(u-du,v,h),point(u,v,h+dh),point(u+du,v,h),point(u,v,h-dh)]});
+  if(style==='metal'){
+    const dark={top:'#566361',side:'#26312f',end:'#3b4945'};
+    for(const u of [.1,.23,.36,.49,.62,.75,.88])for(const h of [32,63])box(u-.01,u+.032,-.028,.028,h-2,h+2,h-2,h+2,'collar',dark);
+    for(const u of [.295,.555,.815])for(const v of [-.027,.027])for(let k=0;k<12;k++){
+      const a=k*Math.PI/6,b=(k+1)*Math.PI/6;
+      faces.push({part:'iron-ring',color:v<0?'#586662':'#35433e',vertices:[point(u+Math.cos(a)*.047,v,48+Math.sin(a)*10),point(u+Math.cos(b)*.047,v,48+Math.sin(b)*10),point(u+Math.cos(b)*.035,v,48+Math.sin(b)*7.5),point(u+Math.cos(a)*.035,v,48+Math.sin(a)*7.5)]});
+    }
+    for(const [i,show] of posts.entries())if(show){box(i-.055,i+.055,-.055,.055,0,5,0,5,'post-foot',dark);box(i-.044,i+.044,-.044,.044,8,14,8,14,'post-collar',dark);}
+  }else{
+    // Engraved grain follows each board, with restrained variation at tile scale.
+    for(const v of style==='privacy'?[-.084,-.016]:style==='picket'?[-.077,-.016]:[-.041,.041]){
+      if(['privacy','picket'].includes(style)){
+        const count=style==='privacy'?6:4;
+        for(let i=0;i<count;i++){
+          const base=style==='privacy'?i/6+.055:.08+i*.24+.045;
+          for(let strand=0;strand<2;strand++){
+            const vertices=[];for(let j=0;j<=6;j++)vertices.push(point(base+strand*.026+Math.sin(j*1.9+i)*.005,v,14+j*9));
+            for(let j=6;j>=0;j--)vertices.push(point(base+strand*.026+Math.sin(j*1.9+i)*.005+.0025,v,14+j*9));
+            faces.push({part:'wood-grain',color:tintColor(palette.end,.86+strand*.05),vertices});
+          }
+          for(const h of [22,66])detail(base+.015,v,h,.007,1.1,'#66685a','fastener');
+        }
+      }else for(const h of style==='slat'?[18,36,54,72,90]:[22,67]){
+        const vertices=[];for(let j=0;j<=8;j++)vertices.push(point(j/8,v,h+Math.sin(j*1.5)*.65));
+        for(let j=8;j>=0;j--)vertices.push(point(j/8,v,h+Math.sin(j*1.5)*.65+.45));
+        faces.push({part:'wood-grain',color:tintColor(palette.end,.88),vertices});
+        for(const u of [.06,.94])detail(u,v,h,.006,1,'#505347','fastener');
+      }
+    }
+    for(const [i,show] of posts.entries())if(show){box(i-.064,i+.064,-.064,.064,0,4,0,4,'post-foot',{top:'#797562',side:'#484b3e',end:'#656951'});for(const v of [-.061,.061])for(const h of [21,66])detail(i,v,h,.014,1.7,'#57584b','post-fastener');}
+  }
   return faces;
 }
 export function stairFaces(end,rotation=0){
