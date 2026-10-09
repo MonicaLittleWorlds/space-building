@@ -1,24 +1,26 @@
 # LW Space Studio
 
-An offline space-building editor with original LittleWorlds building pieces. No account or game sign-in is required to use the editor.
+[Open Space Studio](https://monicalittleworlds.github.io/space-building/)
 
-## Downloads
+An installable, offline-capable space editor with original LittleWorlds building pieces. No account or player sign-in is required.
 
-[Download the latest preview](https://github.com/MonicaLittleWorlds/space-building/releases/latest)
+## Start here
 
-- Mac: Apple Silicon (M-series). Extract the ZIP and open the app. The preview is not Apple-notarized.
-- Windows: x64. Extract the entire ZIP and open LW Space Studio.exe. Windows launch testing is pending.
+1. Open the link in Chrome or Edge on a Mac or Windows computer.
+2. Wait for **Offline ready**.
+3. Click **Install app**, or use the browser’s install option, to add it to your computer.
+4. Use **Save project** to keep a `.lwspace.json` backup of your design.
 
-## Save your work
-
-Save a `.lwspace.json` project before replacing the app. Open the project in the new version. `.lwdecor.json` files contain décor assignments. `.lwbuild.json` files contain checked build data and can reopen in the editor.
+Installation is optional; you can also use the website directly. The browser must remain installed. Offline access is available after the first successful online setup. Browsers can clear local storage, so keep saved project files.
 
 ## Updates
 
-Version 0.5.0 and later check this repository for newer releases. Check for Updates downloads a ZIP and verifies its size and SHA-256 checksum. Save your work, close the app, and replace it manually. Earlier preview builds need one manual download first.
+Website changes are published through this repository. The app checks when opened or brought back into view while online. When a new version is ready, click **Save & update**. The current design is stored locally before reloading. No ZIP replacement or Apple Developer membership is required for this web app.
 
-## Preview limitations
+Drafts stay on the current browser/device and are not uploaded to a server. To move a project between computers, save it and open that file on the other device. Drafts from the earlier localhost or desktop app do not automatically move to this website.
 
-Building, saving, reopening, and local walk tests are available. Game importing and installation, native in-game rendering of these builds, and in-game décor integration remain in development. Export checked build does not install a space in LittleWorlds. Public code signing and automatic installation are not included in this preview.
+## Preview limits
 
-This repository distributes the editor and releases; it does not contain the game server. Third-party software license notices are included with the downloads.
+Game importing, in-game rendering, and in-game décor integration remain in development. Export checked build prepares structured data; it does not install a space in the game.
+
+The website files are in `docs/`; GitHub Pages publishes from `main` / `docs`. Native desktop packages remain separate preview work.
