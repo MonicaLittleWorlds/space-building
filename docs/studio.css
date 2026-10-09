@@ -3,3 +3,5 @@
 .native-background .canvas-label,.native-background .canvas-label small,.native-background .coords{color:#265463}
 
 #web-app:not([hidden]){display:flex;align-items:center;gap:12px;padding:8px 18px;background:#203532;flex-wrap:wrap}#web-app span{flex:1}body:has(#web-app:not([hidden])) main{height:calc(100vh - 132px)}
+
+#canvas{touch-action:none}#pan.active{background:#bde4d0;color:#18372d;border-color:#bde4d0}
