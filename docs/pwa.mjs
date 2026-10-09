@@ -35,7 +35,7 @@ export async function initWebApp(saveForReload){
    finally{check.disabled=false;}
   };
   let setupTimeout;try{await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>{setupTimeout=setTimeout(()=>reject(Error('Offline setup timed out')),60000);})]);}finally{clearTimeout(setupTimeout);}
-  const ready=()=>{note.textContent=navigator.onLine?'Offline ready · shared-code entry':'Offline · your editor is ready';showUpdate();};ready();
+  const ready=()=>{note.textContent=navigator.onLine?'Space Studio · online version check required':'Offline · reconnect to continue building';showUpdate();};ready();
   window.addEventListener('online',()=>{ready();registration.update().catch(()=>{});});window.addEventListener('offline',ready);
   registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker?.addEventListener('statechange',()=>{if(worker.state==='installed')ready();});});showUpdate();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)registration.update().catch(()=>{});});

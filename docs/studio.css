@@ -17,3 +17,17 @@ body[data-locked]>header,body[data-locked]>main,body[data-locked]>#web-app{displ
 #room-name{width:100%;margin-top:8px;background:#253337;border:1px solid #435353;color:#d8e6df;padding:8px;border-radius:6px}
 
 #wall-opacity{display:block;width:100%;margin-top:10px;accent-color:#b5e7d2}#wall-opacity-value{display:block;margin-top:5px;color:#bde4d0}
+
+#version-gate{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;background:#102021f5;overflow:auto}#version-gate[hidden]{display:none}body[data-version-locked]{overflow:hidden}
+
+#entry-gate{position:relative;isolation:isolate;overflow:hidden;background:linear-gradient(155deg,#152f2c,#101b1e 70%)}
+#entry-gate .entry-card{position:relative;z-index:1;background:#192a2bf0;backdrop-filter:blur(12px);border-color:#668b766e;box-shadow:0 24px 90px #030e0bb0,0 0 70px #75ad8e0a}
+.entry-sky{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.entry-sky-glow{position:absolute;inset:-25%;background:radial-gradient(ellipse at 25% 28%,#7aac8540,transparent 36%),radial-gradient(ellipse at 79% 66%,#548c7733,transparent 42%);animation:entry-breath 19s ease-in-out infinite alternate}
+.entry-cloud{position:absolute;top:var(--cloud-top);width:var(--cloud-width);min-width:520px;left:0;opacity:.6;animation:entry-drift var(--cloud-speed) linear var(--cloud-delay) infinite;will-change:transform}
+.entry-cloud svg{display:block;width:100%;height:auto;overflow:visible}
+.entry-cloud-light{opacity:0;filter:drop-shadow(0 0 12px #bde4d0);animation:entry-light var(--cloud-light) ease-in-out var(--cloud-delay) infinite}
+@keyframes entry-drift{from{transform:translateX(-110%)}to{transform:translateX(110vw)}}
+@keyframes entry-breath{from{opacity:.55;transform:scale(1)}to{opacity:1;transform:scale(1.1)}}
+@keyframes entry-light{0%,83%,100%{opacity:0}87%{opacity:.3}92%{opacity:.04}95%{opacity:.16}}
+@media(prefers-reduced-motion:reduce){.entry-cloud{animation:none;transform:translateX(8vw)}.entry-sky-glow{animation:none}.entry-cloud-light{animation:none}}

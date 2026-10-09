@@ -1,3 +1,4 @@
+import {requireCurrentVersion} from './version-gate.mjs';
 import {roomLayout,roomCutaway,cutProfile,roomWallOpacity} from './rooms.mjs';
 import {requireUniversalCode} from './access.mjs';
 import {ProjectLibrary} from './projects.mjs';
@@ -10,6 +11,7 @@ import kit from './kit.mjs';
 import {KIT,wallFacing,wallSurfaceEnds,wallEndVisible,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
 import {ensureDecor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
 import {joinReview,stairReview,doorReview,roomReview} from './review.mjs';
+const versionGate=await requireCurrentVersion();
 await requireUniversalCode();
 const $=id=>document.getElementById(id), svg=$('canvas'), NS='http://www.w3.org/2000/svg';
 let project=demoProject(), savedMessage='Sample loaded. Your edits autosave locally.';
@@ -285,7 +287,9 @@ $('reset-piece').onclick=()=>{if(playing)return;const t=decorPieces(project,acti
 refreshDecor();
 new ResizeObserver(render).observe(svg);render();status(savedMessage);
 
-initWebApp(()=>{if(reviewMode)return;if(pending)throw Error('Finish or cancel your stair connection first.');project.name=$('name').value.trim().slice(0,120)||'Untitled LW space';const data=JSON.stringify(project);sessionStorage.setItem('lw-update-recovery',data);if(!library)throw Error('Save your project file before updating.');library.save(project);});
+function saveForUpdate(){if(reviewMode)return;if(pending)throw Error('Finish or cancel your stair connection first.');project.name=$('name').value.trim().slice(0,120)||'Untitled LW space';const data=JSON.stringify(project);sessionStorage.setItem('lw-update-recovery',data);if(!library)throw Error('Save your project file before updating.');library.save(project);}
+versionGate.setProjectActions({pause:()=>{stopPlay();drag=false;panStart=null;render();},save:saveForUpdate,backup:()=>saveData(project,project.name)});
+initWebApp(saveForUpdate);
 
 function refreshProjects(){const picker=$('project-picker');picker.replaceChildren();if(!library){picker.disabled=true;$('open-project').disabled=true;return;}for(const r of library.list()){const o=document.createElement('option');o.value=r.id;o.textContent=(r.project.name||'Untitled LW space')+' · '+new Date(r.updated).toLocaleString();picker.append(o);}picker.value=library.current;}
 $('open-project').onclick=async()=>{if(!library)return;try{const id=$('project-picker').value;library.save(project);const result=await library.open(id);replace(result.project);refreshProjects();status(result.copied?'That project is open elsewhere. You are editing an independent tab copy.':'Project opened in this tab.');}catch(e){status(e.message);}};
