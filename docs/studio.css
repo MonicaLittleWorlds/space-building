@@ -5,3 +5,11 @@
 #web-app:not([hidden]){display:flex;align-items:center;gap:12px;padding:8px 18px;background:#203532;flex-wrap:wrap}#web-app span{flex:1}body:has(#web-app:not([hidden])) main{height:calc(100vh - 132px)}
 
 #canvas{touch-action:none}#pan.active{background:#bde4d0;color:#18372d;border-color:#bde4d0}
+
+body[data-locked]>header,body[data-locked]>main,body[data-locked]>#web-app{display:none!important}
+#entry-gate{min-height:100vh;display:grid;place-items:center;padding:28px;background:radial-gradient(ellipse at 30% 20%,#294e45,#101b1e 70%)}
+.entry-card{width:min(100%,420px);padding:38px;border:1px solid #4c6d61;border-radius:18px;background:#192a2b;box-shadow:0 20px 70px #0005}
+.entry-brand{font-size:32px;font-weight:800;color:#bde4d0}.entry-brand span{font-size:12px;letter-spacing:3px;vertical-align:middle;margin-left:12px}
+.entry-card h1{font-size:27px;font-weight:500;margin:30px 0 12px}.entry-card p,.entry-card small{color:#b0c5bc;line-height:1.6}
+.entry-card input[type=password],.entry-card input[type=text]{width:100%;background:#102021;border:1px solid #739584;border-radius:8px;padding:13px;color:#e2efe7;font:16px system-ui}
+.entry-card button{width:100%;padding:13px;margin:12px 0}.entry-card small{display:block;font-size:12px}.entry-card #entry-message{min-height:24px;color:#efd1a8}.entry-reveal{display:flex;align-items:center;gap:6px}

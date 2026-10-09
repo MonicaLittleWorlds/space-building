@@ -7,7 +7,7 @@
   "display": "standalone",
   "background_color": "#142624",
   "theme_color": "#142624",
-  "description": "Design LittleWorlds spaces offline. No sign-in required.",
+  "description": "Design LittleWorlds spaces with a shared entry code.",
   "icons": [
     {
       "src": "icon-192.png",

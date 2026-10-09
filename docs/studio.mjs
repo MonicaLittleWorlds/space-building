@@ -1,3 +1,4 @@
+import {requireUniversalCode} from './access.mjs';
 import {ProjectLibrary} from './projects.mjs';
 import {initWebApp} from './pwa.mjs';
 import {buildSpace,openSpaceFile} from './build.mjs';
@@ -8,6 +9,7 @@ import kit from './kit.mjs';
 import {KIT,wallFacing,wallSurfaceEnds,wallEndVisible,wallCollapseAt,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
 import {ensureDecor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
 import {joinReview,stairReview,doorReview} from './review.mjs';
+await requireUniversalCode();
 const $=id=>document.getElementById(id), svg=$('canvas'), NS='http://www.w3.org/2000/svg';
 let project=demoProject(), savedMessage='Sample loaded. Your edits autosave locally.';
 const reviewType=new URLSearchParams(location.search).get('review'),reviewMode=['joins','stairs','doors'].includes(reviewType);
