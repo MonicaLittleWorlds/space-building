@@ -1,3 +1,5 @@
+import {createNativePackage,browserRasterizer} from './native-export.mjs';
+import {wallFaces} from './architecture.mjs';
 import {drawBuilderAvatar,AVATAR_HEIGHT} from './avatar.mjs';
 import {requireCurrentVersion} from './version-gate.mjs';
 import {roomLayout,roomCutaway,cutProfile,roomWallOpacity} from './rooms.mjs';
@@ -9,7 +11,7 @@ import {orderFaces} from './face-order.mjs';
 import {cameraGridPosition,inverseCameraGridPosition,gridToScreen} from './native-coordinate.mjs';
 import {key,nodeKey,edgeKey,levelOf,blankProject,demoProject,triggerCells,rotatedStairEnd,stairFlightCells,stairSolidAt,portalAt,walkable,canPlace,walkRoute,validate,unreachableCells,parseProject} from './model.mjs';
 import kit from './kit.mjs';
-import {KIT,wallUsesBackShadow,wallFacing,wallSurfaceEnds,wallEndVisible,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
+import {KIT,fenceShadowFaces,wallUsesBackShadow,wallFacing,wallSurfaceEnds,wallEndVisible,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
 import {ensureDecor,decorField,decorGroupsFor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
 import {joinReview,stairReview,doorReview,roomReview,fenceReview} from './review.mjs';
 const versionGate=await requireCurrentVersion();
@@ -55,69 +57,21 @@ let faceQueue=null;
 function polygon(vertices,attrs){if(tool==='decor'&&$('decor-kind').value==='wall'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-decor-edge':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(tool==='select'&&!playing&&attrs['data-kind']==='window'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-piece-kind':'window','data-piece-id':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(faceQueue){faceQueue.push({vertices,attrs});return;}element('polygon',{points:points(vertices),...attrs});}
 function drawCorner(corner){for(const face of wallCornerFaces(corner,rotation)){const {back,fill,opacity}=wallPaint(face.wall);const capBack=corner.walls.every(w=>wallUsesBackShadow(facingWall(w),rotation));polygon(face.vertices,{fill:face.part==='cap'?(capBack?'#263e35':'#e2e7d9'):fill,opacity:face.part==='cap'?Math.max(...corner.walls.map(w=>wallPaint(w).opacity)):opacity,'pointer-events':'none','data-kind':'wall-corner','data-corner-id':corner.id,'data-level':active,'data-part':face.part,'data-material':face.wall.material||'blank'});}}
 function collapsedWall(w){return !previewDrawing&&['auto','cut'].includes($('wall-view').value)&&cutSelection.has(edgeKey(w));}
-function drawWall(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w);
-  const attrs={'data-kind':w.kind,'data-level':active,'data-collapsed':collapsed,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-face':back?'back':'front',opacity,'pointer-events':'none'};
-  const panel=(u,v,low,high,color=fill,overrides={})=>{const p=[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u],q=[a[0]+(b[0]-a[0])*v,a[1]+(b[1]-a[1])*v];polygon([[...p,low],[...q,low],[...q,high],[...p,high]],{fill:color,stroke:back?'none':color,'stroke-width':.8,...attrs,...overrides});};
-  if(w.kind==='fence')return;
-  if(collapsed){
-    const profile=cutProfile(w,levelOf(project,active).walls,cutSelection),t=KIT.wallThickness/2;
-    const normal=w.axis==='x'?[1,0]:[0,1],side=w.axis==='x'?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];
-    const at=(u,height,across=0)=>[a[0]+(b[0]-a[0])*u+normal[0]*across,a[1]+(b[1]-a[1])*u+normal[1]*across,height];
-    const heightAt=u=>{for(let i=1;i<profile.length;i++)if(u<=profile[i][0]){const [v,h]=profile[i-1],[q,k]=profile[i];return h+(k-h)*(u-v)/(q-v);}return profile.at(-1)[1];};
-    const ranges=w.kind==='door'?[[0,.16],[.84,1]]:[[0,1]];
-    for(const [lo,hi] of ranges){
-      const top=[[lo,heightAt(lo)],...profile.filter(([u])=>u>lo&&u<hi),[hi,heightAt(hi)]];
-      polygon([at(lo,0),at(hi,0),...top.slice().reverse().map(([u,h])=>at(u,h))],{fill,stroke:fill,'stroke-width':.3,...attrs,'data-part':'room-cut'});
-      for(let i=1;i<top.length;i++){const [u,h]=top[i-1],[v,k]=top[i];polygon([at(u,h),at(v,k),at(v,k,-side*2*t),at(u,h,-side*2*t)],{fill:back?'#263e35':'#e2e7d9',...attrs,'data-part':'cap'});}
-      for(const [u,h] of [top[0],top.at(-1)])if(u>0&&u<1)polygon([at(u,0),at(u,0,-side*2*t),at(u,h,-side*2*t),at(u,h)],{fill:back?'#172c26':'#86958a',...attrs,'data-part':'end'});
-    }
-    for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,levelOf(project,active).walls)){
-      const h=heightAt(i);polygon([[p[0]-normal[0]*t,p[1]-normal[1]*t,0],[p[0]+normal[0]*t,p[1]+normal[1]*t,0],[p[0]+normal[0]*t,p[1]+normal[1]*t,h],[p[0]-normal[0]*t,p[1]-normal[1]*t,h]],{fill:back?'#172c26':'#86958a',...attrs,'data-part':'end'});
-    }
-    return;
-  }
-
-
-  if(w.kind==='door'){
-    const wide=w.doorStyle==='wide',L=wide?.07:.16,R=1-L,top=h*.78;
-    panel(0,L,0,h);panel(R,1,0,h);
-    if(!collapsed){
-      if(w.doorStyle==='arch'){
-        const at=(u,y)=>[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,y];
-        const arch=u=>h*.66+Math.sqrt(Math.max(0,1-((u-.5)/(.5-L))**2))*h*.17;
-        for(let i=0;i<16;i++){const u=L+(R-L)*i/16,v=L+(R-L)*(i+1)/16;polygon([at(u,arch(u)),at(v,arch(v)),at(v,h),at(u,h)],{fill,...attrs});polygon([at(u,arch(u)),at(v,arch(v)),at(v,arch(v)+5),at(u,arch(u)+5)],{fill:back?fill:'#e8e2d2',...attrs});}
-      }else{panel(L,R,top,h);panel(L-.025,R+.025,top-4,top+5,back?fill:'#e8e2d2');}
-      panel(L-.035,L,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#b3b7a9');panel(R,R+.035,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#e8e2d2');
-    }
-  }
-  else if(w.kind==='window'&&!collapsed){
-    const {left:L,right:R,low,high,divided}=windowLayout(w.windowStyle),B=low*h,T=high*h;
-    panel(0,L,0,h);panel(R,1,0,h);panel(L,R,0,B);panel(L,R,T,h);
-    const frame=back?fill:(w.appearance?.frameColor||'#e9e2d1'),glass=w.appearance?.glassColor||'#668b94';
-    // No opaque backing: outdoor geometry remains visible through the pane.
-    panel(L,R,B,T,glass,{opacity:opacity*(back?.4:.22),stroke:'none','data-part':'window-glass'});
-    panel(L+.04,R-.04,B+8,B+(T-B)*.42,'#d9f2f3',{opacity:opacity*(back?.13:.09),stroke:'none','data-part':'window-reflection'});
-    panel(L+.08,L+.13,B+12,T-12,'#ffffff',{opacity:opacity*(back?.27:.25),stroke:'none','data-part':'window-reflection'});
-    panel(L+.17,L+.19,B+12,T-12,'#ffffff',{opacity:opacity*(back?.17:.15),stroke:'none','data-part':'window-reflection'});
-    panel(L-.025,L+.035,B-5,T+5,frame);panel(R-.035,R+.025,B-5,T+5,frame);
-    panel(L-.025,R+.025,T-5,T+5,frame);panel(L-.035,R+.035,B-6,B+4,frame);
-    if(divided){panel(.485,.515,B+4,T-4,frame);panel(L,R,(B+T)/2-2,(B+T)/2+2,frame);}
-    // A shallow sill projects from the front face of the wall.
-    const normal=w.axis==='x'?[1,0]:[0,1],sign=wallFacing(w,levelOf(project,active).tiles);
-    const sill=(u,d)=>[a[0]+(b[0]-a[0])*u+normal[0]*d*sign,a[1]+(b[1]-a[1])*u+normal[1]*d*sign,B+5];
-    polygon([sill(L-.045,0),sill(R+.045,0),sill(R+.045,.1),sill(L-.045,.1)],{fill:frame,...attrs,'data-part':'window-sill'});
-  }
-  else panel(0,1,0,h);
-  const t=KIT.wallThickness/2,offset=w.axis==='x'?[t,0]:[0,t],quad=(p,q,low,high)=>[[p[0]-offset[0],p[1]-offset[1],low],[q[0]+offset[0],q[1]+offset[1],low],[q[0]+offset[0],q[1]+offset[1],high],[p[0]-offset[0],p[1]-offset[1],high]];
-  const [capA,capB]=wallCapEnds(w,corners);
-  polygon([[capA[0]-offset[0],capA[1]-offset[1],h],[capB[0]-offset[0],capB[1]-offset[1],h],[capB[0]+offset[0],capB[1]+offset[1],h],[capA[0]+offset[0],capA[1]+offset[1],h]],{fill:back?'#263e35':'#e2e7d9',...attrs,'data-part':'cap'});
-  for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,levelOf(project,active).walls))polygon(quad(p,p,0,h),{fill:back?'#172c26':'#86958a',...attrs,'data-part':'end'});
-}
+function drawWall(w,corners=[]){for(const face of wallFaces(w,{level:levelOf(project,active),rotation,corners,collapsed:collapsedWall(w),paint:wallPaint(w),cutSelection}))polygon(face.vertices,face.attrs);}
 function drawItem(i){const x=i.x,z=i.z;for(const [a,b,fill] of [[[x-.3,z+.3],[x+.3,z+.3],'#728b83'],[[x+.3,z-.3],[x+.3,z+.3],'#506b63']])element('polygon',{points:points([[...a,0],[...b,0],[...b,35],[...a,35]]),fill,stroke:'#bfd3c3','pointer-events':'none'});element('polygon',{points:points([[x-.3,z-.3,35],[x+.3,z-.3,35],[x+.3,z+.3,35],[x-.3,z+.3,35]]),fill:'#a9c1b3',stroke:'#bfd3c3','pointer-events':'none'});}
+function drawSpaceUndershadow(level){
+  const cells=Object.keys(level.tiles);if(!cells.length)return;
+  const s=scale(),defs=element('defs'),filter=element('filter',{id:'space-undershadow-blur',x:'-50%',y:'-50%',width:'200%',height:'200%','color-interpolation-filters':'sRGB'},defs);
+  element('feGaussianBlur',{stdDeviation:10*s},filter);
+  // One silhouette avoids stacked shadows where neighboring floor tiles meet.
+  const d=cells.map(id=>{const [x,z]=id.split(',').map(Number);return diamond(x,z).map(([a,b],i)=>`${i?'L':'M'}${projection(a,b).join(' ')}`).join(' ')+'Z';}).join(' ');
+  element('path',{d,fill:'#173e49',stroke:'#173e49','stroke-width':s,opacity:.32,transform:`translate(${8*s} ${24*s})`,filter:'url(#space-undershadow-blur)','pointer-events':'none','aria-hidden':'true','data-kind':'space-undershadow'});
+}
 function render(){
   // Measure once before SVG writes; per-face layout reads make rotation and walking stall.
   const width=svg.clientWidth,height=svg.clientHeight;viewMetrics={width,height,scale:+$('zoom').value/100*Math.min(1,width/780,height/720)};
   const l=levelOf(project,active);if(!roomCache.has(l))roomCache.set(l,roomLayout(l));const cutaway=roomCutaway(l,{avatar:playing?avatar:null,rotation,mode:$('wall-view').value,rooms:roomCache.get(l)});cutSelection=cutaway.selected;svg.replaceChildren();const nativeBackground=$('background-view').value==='native';svg.style.background=nativeBackground?'linear-gradient(#9BECFC,#00C4F5)':'';svg.parentElement.classList.toggle('native-background',nativeBackground);
+  if(nativeBackground)drawSpaceUndershadow(l);
   const corners=[[0,0],[svg.clientWidth,0],[0,svg.clientHeight],[svg.clientWidth,svg.clientHeight]].map(([x,y])=>gridAt(x,y));
   const minX=Math.floor(Math.min(...corners.map(p=>p.wx)))-1,maxX=Math.ceil(Math.max(...corners.map(p=>p.wx)))+1,minZ=Math.floor(Math.min(...corners.map(p=>p.wz)))-1,maxZ=Math.ceil(Math.max(...corners.map(p=>p.wz)))+1;
   if(!nativeBackground)for(let x=minX;x<=maxX;x++)for(let z=minZ;z<=maxZ;z++)tile(x,z,'transparent','#49615b',{'stroke-opacity':.35,'data-cell':key(x,z)});
@@ -158,6 +112,7 @@ function render(){
   if(project.spawn?.level===active){const [x,y]=projection(project.spawn.x,project.spawn.z);text(x,y-5,'⚑',{fill:'#426c58','font-size':28});}
   const visible=visibleLevelObjects(project,active);
   const joins=wallCorners(l.walls,collapsedWall);
+  for(const w of visible.walls.filter(w=>w.kind==='fence'))for(const face of fenceShadowFaces({...w,gateOpen:!!(w.gate&&playing&&avatar?.level===active&&Math.hypot(avatar.x-w.x,avatar.z-w.z)<1.8)},fencePostOwners(w,visible.walls)))polygon(face.vertices,face.attrs);
   faceQueue=[];
   for(const w of visible.walls.filter(w=>w.kind!=='fence'&&onScreen(w.x,w.z,KIT.wallHeight)))drawWall(w,joins);
   for(const corner of joins)if(onScreen(corner.x,corner.z,corner.height))drawCorner(corner);
@@ -335,7 +290,7 @@ $('new').onclick=()=>openAsNew(blankProject()).catch(e=>status(e.message));
 $('new-top').onclick=()=>$('new').click();
 $('demo').onclick=()=>openAsNew(demoProject()).catch(e=>status(e.message));
 async function saveData(data,name,kind='project'){if(window.lwDesktop){const saved=await window.lwDesktop.saveProject(name,JSON.stringify(data,null,2),kind);status(saved?'File saved.':'Save cancelled.');return;}const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(name.replace(/[^a-z0-9]+/gi,'-')||'lw-space')+({project:'.lwspace.json',decor:'.lwdecor.json',build:'.lwbuild.json'}[kind]);a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('File downloaded.');}
-$('export-build').onclick=()=>{try{if(pending)throw Error('Finish or cancel the pending stair connection before building.');saveData(buildSpace(project),project.name,'build').catch(e=>status(e.message));}catch(e){if(!pending&&unreachableCells(project).length)showUnreachable();else status(e.message);}};
+$('export-build').onclick=async()=>{const button=$('export-build');try{if(pending)throw Error('Finish or cancel the pending stair connection before building.');button.disabled=true;status('Preparing game assets…');const snapshot=structuredClone(project);const build=await createNativePackage(snapshot,{...browserRasterizer,onProgress:n=>status(`Preparing game assets… ${n} pieces`)});await saveData(build,snapshot.name,'build');}catch(e){if(!pending&&unreachableCells(project).length)showUnreachable();else status(e.message);}finally{button.disabled=false;}};
 $('save').onclick=()=>saveData(project,project.name).catch(e=>status(e.message));
 $('load').onclick=async()=>{if(window.lwDesktop){try{const raw=await window.lwDesktop.openProject();if(raw){await openAsNew(openSpaceFile(raw));status('Project loaded.');}}catch(e){status(e.message);}}else $('file').click();};$('file').onchange=async()=>{const f=$('file').files[0];if(!f)return;try{if(f.size>32_000_000)throw Error('Project is too large (maximum 32 MB).');const p=openSpaceFile(await f.text());await openAsNew(p);status('Project loaded.');}catch(e){status(e.message);}$('file').value='';};
 for(const [id,materials] of [['floor-material',kit.floorMaterials],['wall-material',kit.wallMaterials]])for(const m of materials){const o=document.createElement('option');o.value=m.id;o.textContent=m.name;$(id).append(o);}

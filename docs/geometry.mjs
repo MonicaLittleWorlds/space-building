@@ -215,3 +215,13 @@ export function stairwell(project,stair,rotation=0){
   return {lower,upper,opening,cells,faces,belowPoint};
 }
 
+
+// Contact shadows stay on their floor and never contribute navigation geometry.
+export function fenceShadowFaces(w,posts=[true,true]){
+ const [a,b]=wallEnds(w),faces=[],normal=w.axis==='x'?[1,0]:[0,1];
+ const strip=(p,q,width,opacity)=>faces.push({part:'contact-shadow',vertices:[[p[0]-normal[0]*width,p[1]-normal[1]*width,.02],[q[0]-normal[0]*width,q[1]-normal[1]*width,.02],[q[0]+normal[0]*width,q[1]+normal[1]*width,.02],[p[0]+normal[0]*width,p[1]+normal[1]*width,.02]],color:'#203b30',attrs:{fill:'#203b30',opacity,stroke:'none','pointer-events':'none'}});
+ if(!w.gate)for(const [width,opacity]of [[.16,.045],[.11,.06],[.065,.08]])strip(a,b,width,opacity);
+ for(const [i,p]of [a,b].entries())if(posts[i])for(const [radius,opacity]of [[.14,.06],[.10,.09],[.065,.12]])faces.push({part:'post-shadow',vertices:Array.from({length:12},(_,j)=>[p[0]+Math.cos(j*Math.PI/6)*radius,p[1]+Math.sin(j*Math.PI/6)*radius,.03]),color:'#203b30',attrs:{fill:'#203b30',opacity,stroke:'none','pointer-events':'none'}});
+ if(w.gate&&w.gateOpen){const end=[a[0]+normal[0]*.76,a[1]+normal[1]*.76];for(const [width,opacity]of [[.09,.05],[.05,.07]]){const dx=end[0]-a[0],dz=end[1]-a[1];faces.push({part:'gate-shadow',vertices:[[a[0]-dz*width,a[1]+dx*width,.03],[end[0]-dz*width,end[1]+dx*width,.03],[end[0]+dz*width,end[1]-dx*width,.03],[a[0]+dz*width,a[1]-dx*width,.03]],attrs:{fill:'#203b30',opacity,stroke:'none'}});}}
+ return faces;
+}

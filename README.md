@@ -28,3 +28,14 @@ The website files are in `docs/`; GitHub Pages publishes from `main` / `docs`. N
 ## Independent projects
 
 Each tab has its own project session. Use **My Projects · This Browser** to reopen local projects. Opening a project already being edited in another tab makes an independent tab copy. New blank spaces and opened files create new projects instead of replacing the previous autosave. Earlier single drafts are preserved during migration. Projects remain on this browser/device, never in GitHub branches. Use Save project to download a .lwspace.json file and send it to another person; they can use Open to load it. People sharing the same browser profile can see its local project list.
+
+## V1.21 — October 10, 2026
+
+- Checked-build exports now bundle reusable native assets, floor navigation, room data and explicit stair landing coordinates.
+- Preserve downstairs tiles beneath upstairs stair openings; improve floor edge coverage, stair depth sections, corner finishes and fence contact shadows.
+- Cyan preview includes the space undershadow.
+- Existing saved projects remain on your device and can still be reopened.
+
+Game import requires the matching server integration. Native décor editing and synchronized gate open/closed behavior remain in development. The browser app does not upload projects or modify game ownership automatically.
+
+Use **Check for updates**, then save your project before applying the update.

@@ -25,7 +25,7 @@ export function buildSpace(input,{legacyDecor=false}={}){
 export function openSpaceFile(raw){
  const value=typeof raw==='string'?JSON.parse(raw):raw;
  if(value?.format==='lw-space-build'){
-  if(value.version!==1||value.requires!=='lw-studio-game-importer-v1')throw Error('Unsupported LW build version.');
+  if(![1,2].includes(value.version)||value.requires!==`lw-studio-game-importer-v${value.version}`)throw Error('Unsupported LW build version.');
   const checked=buildSpace(value.project,{legacyDecor:value.decor?.version===1});
   if(JSON.stringify(value.scene)!==JSON.stringify(checked.scene)||JSON.stringify(value.decor)!==JSON.stringify(checked.decor))throw Error('Build data does not match its project. Rebuild from the original project file.');
   return ensureDecor(checked.project);
