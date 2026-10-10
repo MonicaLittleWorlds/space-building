@@ -7,7 +7,7 @@ import {initWebApp} from './pwa.mjs';
 import {buildSpace,openSpaceFile} from './build.mjs';
 import {orderFaces} from './face-order.mjs';
 import {cameraGridPosition,inverseCameraGridPosition,gridToScreen} from './native-coordinate.mjs';
-import {key,nodeKey,edgeKey,levelOf,blankProject,demoProject,triggerCells,rotatedStairEnd,stairFlightCells,stairSolidAt,portalAt,walkable,canPlace,walkRoute,validate,parseProject} from './model.mjs';
+import {key,nodeKey,edgeKey,levelOf,blankProject,demoProject,triggerCells,rotatedStairEnd,stairFlightCells,stairSolidAt,portalAt,walkable,canPlace,walkRoute,validate,unreachableCells,parseProject} from './model.mjs';
 import kit from './kit.mjs';
 import {KIT,wallUsesBackShadow,wallFacing,wallSurfaceEnds,wallEndVisible,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
 import {ensureDecor,decorField,decorGroupsFor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
@@ -27,6 +27,7 @@ if(!reviewMode)try{
 if(reviewMode){project=reviewType==='fences'?fenceReview():reviewType==='rooms'?roomReview():reviewType==='stairs'?stairReview():reviewType==='doors'?doorReview():joinReview();savedMessage='Join review sample · your draft is unchanged.';}
 ensureDecor(project);
 let active=project.levels[0].id,rotation=0,tool='floor',pending=null,playing=false,avatar=null,undo=[],redo=[],drag=false,painted=new Set(),timer=null,pan={x:0,y:0},panStart=null,panMode=false;
+let issueFocus=null;
 let decorRemoving=false,avatarHeading={x:0,z:1},avatarPhase=0,avatarMoving=false;
 let roomStart=null,roomCache=new WeakMap(),cutSelection=new Set();
 const tools=[['select','↖','Select / edit'],['room','▧','Room area'],['floor','◇','Floor'],['wall','▱','Wall'],['door','Π','Doorway'],['window','⊞','Window wall'],['fence','╫','Fence'],['gate','⊏⊐','Fence gate'],['face','↔','Flip wall face'],['stairs','▤','Stairs'],['item','▣','Test item'],['spawn','⚑','Entry'],['erase','⌫','Erase']];
@@ -188,12 +189,36 @@ function render(){
   refreshToolSettings();refreshSimpleView();refreshPieces();
   $('counts').textContent=`${project.levels.length} floors · ${Object.keys(l.tiles).length} tiles · ${joins.length} auto corners · ${project.stairs.length} stair links`;
   $('view-label').textContent=l.name.toUpperCase()+' · '+['NORTH','EAST','SOUTH','WEST'][rotation]+' VIEW';
+  renderIssueLocations();
   $('hint').textContent=panMode?'Drag to pan · click Pan again to return to '+(playing?'walking':'building'):playing?'Click floor to walk. End on a stair base to change floors; crossing it is safe.':pending?'Stair base selected. Choose another floor, then click its single or double landing.':({select:'Click a placed stair or window to edit it. Rotate stairs with the left/right buttons; the other floor stays unchanged.',room:roomStart?'Click the opposite floor corner to finish the room area':'Click two opposite floor corners to mark a room area',floor:'Drag to paint floor • Right-drag or Option-drag to pan',wall:'Drag along grid edges to build walls',door:'Click a grid edge to add an open doorway',window:'Click a grid edge to add a window wall',fence:'Drag along grid edges to build a fence',gate:'Click a fence edge to replace it with a matching gate · gates open automatically while walking',face:'Click a wall edge to reverse its finished face and back shadow',decor:decorRemoving?'Click or drag over highlighted surfaces to remove them from this label':'Click or drag to add surfaces to the selected décor label · finish in the Décor panel',stairs:'Choose Single or Double width, place a base, then its destination on another floor',item:'Click a placeable tile to add a solid test item',spawn:'Click a walkable tile to set the entry point',erase:'Click to remove an item or stair; near an edge removes a wall; otherwise removes floor'})[tool];
   document.querySelectorAll('[data-tool]').forEach(b=>{b.classList.toggle('active',b.dataset.tool===tool);b.disabled=playing;});
   [...$('views').children].forEach((b,i)=>b.classList.toggle('active',i===rotation));
   $('wall-opacity-value').textContent=$('wall-opacity').value+'% visible';
   $('pan').classList.toggle('active',panMode);$('pan').setAttribute('aria-pressed',String(panMode));svg.style.cursor=panStart?'grabbing':panMode?'grab':'';
   refreshDecor();$('undo').disabled=!undo.length||playing;$('redo').disabled=!redo.length||playing;$('add-level').disabled=playing;$('play').textContent=playing?'■ End walk test':'▶ Walk test';drawPlacementPreview();viewMetrics=null;
+}
+function showUnreachable(index=0){
+ const cells=unreachableCells(project);if(!cells.length){issueFocus=null;render();return;}
+ stopPlay();pending=null;roomStart=null;placementPointer=null;panMode=false;tool='select';
+ issueFocus=cells[(index+cells.length)%cells.length];active=issueFocus.level;
+ $('zoom').value=Math.max(100,+$('zoom').value);pan={x:0,y:0};
+ const [x,y]=projection(issueFocus.x,issueFocus.z);pan={x:svg.clientWidth/2-x,y:svg.clientHeight/2-y};
+ $('sidebar-tab-finish')?.click();render();
+ status(`Unreachable tile · ${levelOf(project,active).name} · X ${issueFocus.x}, Z ${issueFocus.z}. Add a route, doorway or stair connection, or turn off walking for this tile.`);
+}
+function renderIssueLocations(){
+ const cells=unreachableCells(project),panel=$('checks');
+ if(!cells.length){if(issueFocus){issueFocus=null;status('All walkable tiles can now be reached from entry.');}return;}
+ const button=(label,action)=>{const b=document.createElement('button');b.textContent=label;b.onclick=action;panel.append(b);return b;};
+ if(!issueFocus){button(`Show unreachable tiles (${cells.length})`,()=>showUnreachable());return;}
+ let index=cells.findIndex(c=>nodeKey(c)===nodeKey(issueFocus));
+ if(index<0){issueFocus=null;button(`Show remaining unreachable tiles (${cells.length})`,()=>showUnreachable());return;}
+ const note=document.createElement('p');note.className='muted';note.textContent=`Tile ${index+1} of ${cells.length} · ${levelOf(project,issueFocus.level).name} · X ${issueFocus.x}, Z ${issueFocus.z}. Red tiles have no walking route from entry. Check surrounding walls, items, gaps and stair connections.`;panel.append(note);
+ button('Previous problem tile',()=>showUnreachable(index-1)).disabled=cells.length<2;
+ button('Next problem tile',()=>showUnreachable(index+1)).disabled=cells.length<2;
+ button('Hide problem highlights',()=>{issueFocus=null;render();});
+ for(const cell of cells.filter(c=>c.level===active))tile(cell.x,cell.z,'#ff50504d','#ff6868',{'stroke-width':3,'pointer-events':'none','data-kind':'unreachable-tile'});
+ if(issueFocus.level===active){tile(issueFocus.x,issueFocus.z,'#ff505066','#fff3a4',{'stroke-width':5,'pointer-events':'none'});const [x,y]=projection(issueFocus.x,issueFocus.z);text(x,y-22,`Problem ${index+1} · X ${issueFocus.x}, Z ${issueFocus.z}`,{fill:'#fff3a4',stroke:'#172525','stroke-width':4,'paint-order':'stroke','font-weight':700});}
 }
 function nearestEdge(p){const x=Math.round(p.wx),z=Math.round(p.wz),dx=p.wx-x,dz=p.wz-z;return Math.abs(dx)>Math.abs(dz)?{axis:'x',x:x+(dx>0?1:0),z}:{axis:'z',x,z:z+(dz>0?1:0)};}
 function stairBrush(n){return {...n,axis:$('axis').value,angle:$('axis').value==='x'?90:0,width:+$('stair-width').value,style:$('stair-style').value,depth:+$('stair-depth').value,rise:+$('stair-rise').value};}
@@ -310,7 +335,7 @@ $('new').onclick=()=>openAsNew(blankProject()).catch(e=>status(e.message));
 $('new-top').onclick=()=>$('new').click();
 $('demo').onclick=()=>openAsNew(demoProject()).catch(e=>status(e.message));
 async function saveData(data,name,kind='project'){if(window.lwDesktop){const saved=await window.lwDesktop.saveProject(name,JSON.stringify(data,null,2),kind);status(saved?'File saved.':'Save cancelled.');return;}const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(name.replace(/[^a-z0-9]+/gi,'-')||'lw-space')+({project:'.lwspace.json',decor:'.lwdecor.json',build:'.lwbuild.json'}[kind]);a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);status('File downloaded.');}
-$('export-build').onclick=()=>{try{if(pending)throw Error('Finish or cancel the pending stair connection before building.');saveData(buildSpace(project),project.name,'build').catch(e=>status(e.message));}catch(e){status(e.message);}};
+$('export-build').onclick=()=>{try{if(pending)throw Error('Finish or cancel the pending stair connection before building.');saveData(buildSpace(project),project.name,'build').catch(e=>status(e.message));}catch(e){if(!pending&&unreachableCells(project).length)showUnreachable();else status(e.message);}};
 $('save').onclick=()=>saveData(project,project.name).catch(e=>status(e.message));
 $('load').onclick=async()=>{if(window.lwDesktop){try{const raw=await window.lwDesktop.openProject();if(raw){await openAsNew(openSpaceFile(raw));status('Project loaded.');}}catch(e){status(e.message);}}else $('file').click();};$('file').onchange=async()=>{const f=$('file').files[0];if(!f)return;try{if(f.size>32_000_000)throw Error('Project is too large (maximum 32 MB).');const p=openSpaceFile(await f.text());await openAsNew(p);status('Project loaded.');}catch(e){status(e.message);}$('file').value='';};
 for(const [id,materials] of [['floor-material',kit.floorMaterials],['wall-material',kit.wallMaterials]])for(const m of materials){const o=document.createElement('option');o.value=m.id;o.textContent=m.name;$(id).append(o);}

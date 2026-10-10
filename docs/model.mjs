@@ -62,18 +62,24 @@ export function walkRoute(p,start,goal) {
   }
   return path;
 }
+export function unreachableCells(p) {
+  if(!p.spawn||!walkable(p,p.spawn))return [];
+  const queue=[p.spawn],seen=new Set([nodeKey(p.spawn)]);
+  for(let i=0;i<queue.length;i++)for(const {node} of transitions(p,queue[i]))if(!seen.has(nodeKey(node))){seen.add(nodeKey(node));queue.push(node);}
+  const cells=[];
+  for(const l of p.levels)for(const k of Object.keys(l.tiles)){
+    const [x,z]=k.split(',').map(Number),n={level:l.id,x,z};
+    if(walkable(p,n)&&!seen.has(nodeKey(n)))cells.push(n);
+  }
+  return cells;
+}
 export function validate(p) {
   const issues=[];
   if(!p.spawn||!walkable(p,p.spawn)) issues.push('Set an entry point on walkable, unoccupied floor.');
   for(const s of p.stairs) for(const e of [s.a,s.b]) if(triggerCells(e).some(c=>!walkable(p,c))) issues.push(`${s.id}: trigger cells need walkable, unoccupied floor.`);
   for(const l of p.levels) for(const i of l.items) if(!l.tiles[key(i.x,i.z)]?.place) issues.push(`${l.name}: a test item is outside a placeable tile.`);
-  if(p.spawn&&walkable(p,p.spawn)) {
-    const queue=[p.spawn],seen=new Set([nodeKey(p.spawn)]),reached=new Set(seen);
-    for(let i=0;i<queue.length;i++) for(const t of transitions(p,queue[i])) {if(t.via)reached.add(nodeKey(t.via));reached.add(nodeKey(t.node));if(!seen.has(nodeKey(t.node))) {seen.add(nodeKey(t.node));queue.push(t.node);}}
-    let unreachable=0;
-    for(const l of p.levels) for(const k of Object.keys(l.tiles)) {const [x,z]=k.split(',').map(Number),n={level:l.id,x,z};if(walkable(p,n)&&!reached.has(nodeKey(n))) unreachable++;}
-    if(unreachable) issues.push(`${unreachable} walkable cells cannot be reached from entry.`);
-  }
+  const unreachable=unreachableCells(p).length;
+  if(unreachable) issues.push(`${unreachable} walkable cells cannot be reached from entry.`);
   return issues;
 }
 export function parseProject(value) {
