@@ -101,3 +101,18 @@ export function parseProject(value) {
   for(const l of p.levels)for(const v of [...Object.values(l.tiles),...Object.values(l.walls)]){if(v.material!==undefined&&!/^[a-z-]{1,40}$/.test(v.material))fail();if(v.piece!==undefined&&(typeof v.piece!=='string'||v.piece.length>50))fail();if(v.size!==undefined&&![1,2].includes(v.size))fail();if(v.facing!==undefined&&![1,-1].includes(v.facing))fail();appearance(v.appearance,['frameColor','glassColor']);if(v.doorStyle!==undefined&&!['square','wide','arch'].includes(v.doorStyle))fail();if(v.windowStyle!==undefined&&!['plain','divided','high'].includes(v.windowStyle))fail();if(v.gate!==undefined&&(typeof v.gate!=='boolean'||v.kind!=='fence'))fail();if(v.fenceStyle!==undefined&&!['rail','picket','metal','privacy','slat'].includes(v.fenceStyle))fail();}
   return structuredClone(p);
 }
+
+// Rotate one authored endpoint; the connected floor keeps its own layout.
+export function rotatedStairEnd(project,id,side,turn=1){
+ const stair=project.stairs.find(s=>s.id===id),end=stair?.[side];
+ if(!end||!['a','b'].includes(side)||!end.style)throw Error('Select a placed staircase first.');
+ const directions=[['x',-1],['z',1],['x',1],['z',-1]];
+ const index=directions.findIndex(([axis,rise])=>axis===end.axis&&rise===(end.rise===1?1:-1));
+ const [axis,rise]=directions[(index+(turn===2?2:turn<0?3:1))%4];
+ const next={...end,axis,rise,angle:axis==='x'?90:0};
+ const other={...project,stairs:project.stairs.filter(s=>s.id!==id)};
+ const level=levelOf(project,end.level);
+ if(triggerCells(next).some(c=>!walkable(other,c)||portalAt(other,c)||nodeKey(project.spawn||{})===nodeKey(c)))throw Error('The rotated stair base needs free walkable floor.');
+ if(stairFlightCells(next).some(c=>portalAt(other,c)||stairSolidAt(other,c)||nodeKey(project.spawn||{})===nodeKey(c)||level.items.some(i=>i.x===c.x&&i.z===c.z)))throw Error('The rotated stairs would overlap another stair, an item, or the entry point.');
+ return next;
+}
