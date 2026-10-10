@@ -37,3 +37,5 @@ body[data-locked]>header,body[data-locked]>main,body[data-locked]>#web-app{displ
 #tool-settings [hidden]{display:none!important}#tool-settings-title{text-transform:uppercase}#tool-settings>.section{margin-top:12px;padding-top:12px}#tool-settings-help{color:#bfd5cc}
 
 .sidebar-panel[hidden],.right [hidden]{display:none!important}.sidebar-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;position:sticky;top:-24px;background:#152023;padding:8px 0;z-index:2}.sidebar-panel>.section:first-of-type{margin-top:14px}.finish-actions{display:grid;gap:8px}.sidebar-panel summary{cursor:pointer;margin:12px 0;color:#b5d8c8}.sidebar-panel #add-level{width:100%;margin-top:10px}
+
+.entry-card .entry-version{margin:12px 0 0;color:#a8c4b8;font-size:12px;letter-spacing:.04em;overflow-wrap:anywhere}
