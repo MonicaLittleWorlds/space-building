@@ -24,14 +24,14 @@ export function wallEndVisible(w,index,rotation){
   const view=((rotation%4)+4)%4,tangent=w.axis==='x'?[1,-1,-1,1][view]:[1,1,-1,-1][view];
   return tangent*(index===0?-1:1)>0;
 }
-export function wallEndExposed(w,end,walls){const p=wallEnds(w)[end];return !Object.values(walls).some(other=>other!==w&&(other.kind==='fence')===(w.kind==='fence')&&wallEnds(other).some(q=>q[0]===p[0]&&q[1]===p[1]));}
+export function wallEndExposed(w,end,walls){const p=wallEnds(w)[end];return !Object.values(walls).some(other=>other!==w&&other.kind!=='door'&&(other.kind==='fence')===(w.kind==='fence')&&wallEnds(other).some(q=>q[0]===p[0]&&q[1]===p[1]));}
 export function wallRenderHeight(w,cut=false){return w.kind==='fence'?KIT.fenceHeight:(typeof cut==='function'?cut(w):cut)&&w.collapse?26:KIT.wallHeight;}
 // Corner pieces are derived per floor, so drawing, erasing, undo, and loading
 // cannot leave an orphaned corner. Straight runs never produce a corner.
 export function wallCorners(walls,cut=false){
   const ends=new Map();
   for(const wall of Object.values(walls)){
-    if(wall.kind==='fence')continue;
+    if(wall.kind==='fence'||wall.kind==='door')continue;
     for(const [x,z] of wallEnds(wall)){const id=`${x},${z}`;if(!ends.has(id))ends.set(id,{id,x,z,walls:[]});ends.get(id).walls.push(wall);}
   }
   return [...ends.values()].filter(p=>new Set(p.walls.map(w=>w.axis)).size===2).map(p=>({...p,height:Math.max(...p.walls.map(w=>wallRenderHeight(w,cut))),walls:p.walls.sort((a,b)=>a.axis.localeCompare(b.axis)||a.x-b.x||a.z-b.z)}));
