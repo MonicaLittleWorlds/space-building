@@ -71,5 +71,5 @@ export function cutProfile(w,walls,selected){
 
 export function roomWallOpacity(w,selected,mode,visibility,back=false){
  const faded=['auto-fade','transparent'].includes(mode)&&selected.has(edgeKey(w));
- return faded?visibility:back?.3:1;
+ return faded?visibility:back&&!w.collapse?.3:1;
 }

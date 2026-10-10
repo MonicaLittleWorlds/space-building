@@ -13,6 +13,9 @@ export function wallSide(w,rotation){
   const view=((rotation%4)+4)%4,normal=w.axis==='x'?[1,1,-1,-1][view]:[1,-1,-1,1][view];
   return normal*(w.facing===-1?-1:1)>0?'front':'back';
 }
+// Collapsible room walls keep their finish on either visible side. Their
+// visibility is controlled by the room cutaway, not the back-face shadow.
+export function wallUsesBackShadow(w,rotation){return !w.collapse&&wallSide(w,rotation)==='back';}
 export function wallSurfaceEnds(w,rotation,corners=[]){
   const view=((rotation%4)+4)%4,side=w.axis==='x'?[1,1,-1,-1][view]:[1,-1,-1,1][view],t=KIT.wallThickness/2;
   return wallCapEnds(w,corners).map(([x,z])=>[x+(w.axis==='x'?side*t:0),z+(w.axis==='z'?side*t:0)]);
