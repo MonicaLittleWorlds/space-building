@@ -99,7 +99,7 @@ export function parseProject(value) {
   if(p.spawn!==null&&(!pos(p.spawn)||!ids.has(p.spawn.level))) fail();
   if(p.decorGroups!==undefined){if(!Array.isArray(p.decorGroups)||p.decorGroups.length>10000)fail();const groups=new Set();for(const g of p.decorGroups){if(!g||!/^lw_[a-z0-9_]{1,80}$/.test(g.id)||groups.has(g.id)||typeof g.name!=='string'||g.name.length>80||!['floor','wall'].includes(g.kind)||typeof g.editable!=='boolean')fail();if((g.level!==undefined||g.area!==undefined)&&(!p.levels.some(l=>l.id===g.level)||!['inside','outside'].includes(g.area)||(g.area==='outside'&&g.level!==p.levels[0].id)))fail();groups.add(g.id);}for(const l of p.levels)for(const [kind,values] of [['floor',l.tiles],['wall',l.walls]])for(const v of Object.values(values)){if(v.decorGroup&&!p.decorGroups.some(g=>g.id===v.decorGroup&&g.kind===kind&&(!g.level||g.level===l.id)))fail();}}
   for(const l of p.levels)for(const v of [...Object.values(l.tiles),...Object.values(l.walls)]){if(v.material!==undefined&&!/^[a-z-]{1,40}$/.test(v.material))fail();if(v.piece!==undefined&&(typeof v.piece!=='string'||v.piece.length>50))fail();if(v.size!==undefined&&![1,2].includes(v.size))fail();if(v.facing!==undefined&&![1,-1].includes(v.facing))fail();appearance(v.appearance,['frameColor','glassColor']);if(v.doorStyle!==undefined&&!['square','wide','arch'].includes(v.doorStyle))fail();if(v.windowStyle!==undefined&&!['plain','divided','high'].includes(v.windowStyle))fail();if(v.gate!==undefined&&(typeof v.gate!=='boolean'||v.kind!=='fence'))fail();if(v.fenceStyle!==undefined&&!['rail','picket','metal','privacy','slat'].includes(v.fenceStyle))fail();}
-  return structuredClone(p);
+  validateExteriorFinishes(p);return structuredClone(p);
 }
 
 // Rotate one authored endpoint; the connected floor keeps its own layout.
@@ -115,4 +115,11 @@ export function rotatedStairEnd(project,id,side,turn=1){
  if(triggerCells(next).some(c=>!walkable(other,c)||portalAt(other,c)||nodeKey(project.spawn||{})===nodeKey(c)))throw Error('The rotated stair base needs free walkable floor.');
  if(stairFlightCells(next).some(c=>portalAt(other,c)||stairSolidAt(other,c)||nodeKey(project.spawn||{})===nodeKey(c)||level.items.some(i=>i.x===c.x&&i.z===c.z)))throw Error('The rotated stairs would overlap another stair, an item, or the entry point.');
  return next;
+}
+
+export function validateExteriorFinishes(p){
+ for(const l of p.levels)for(const w of Object.values(l.walls)){
+  if(w.exteriorMaterial!==undefined&&!/^[a-z-]{1,40}$/.test(w.exteriorMaterial))throw Error('Invalid outside wall finish.');
+  if(w.exteriorDecorGroup&&!p.decorGroups?.some(g=>g.id===w.exteriorDecorGroup&&g.kind==='wall'&&g.area==='outside'&&g.level===l.id))throw Error('Invalid outside wall label.');
+ }
 }

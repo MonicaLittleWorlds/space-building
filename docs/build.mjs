@@ -8,7 +8,7 @@ export function buildSpace(input,{legacyDecor=false}={}){
  for(const l of project.levels){
   if(!Object.keys(l.tiles).length)issues.push(`${l.name}: add floor tiles or remove this empty floor.`);
   for(const t of Object.values(l.tiles))if(!kit.floorMaterials.some(m=>m.id===(t.material||'blank')))issues.push(`${l.name}: unknown floor material.`);
-  for(const w of Object.values(l.walls))if(!kit.wallMaterials.some(m=>m.id===(w.material||'blank')))issues.push(`${l.name}: unknown wall material.`);
+  for(const w of Object.values(l.walls))if(!kit.wallMaterials.some(m=>m.id===(w.material||'blank'))||(w.exteriorMaterial&&!kit.wallMaterials.some(m=>m.id===w.exteriorMaterial)))issues.push(`${l.name}: unknown wall material.`);
  }
  if(issues.length)throw Error('Build needs attention:\n'+[...new Set(issues)].join('\n'));
  const levels=project.levels.map(l=>{
