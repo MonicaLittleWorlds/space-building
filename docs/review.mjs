@@ -15,3 +15,10 @@ export function roomReview(){
 }
 
 export function fenceReview(){const p=blankProject(),l=p.levels[0];p.name='LW detailed fence collection';for(let x=-1;x<13;x++)for(let z=-1;z<10;z++)l.tiles[key(x,z)]={walk:true,place:true,material:'grass'};for(const [i,fenceStyle] of ['rail','picket','metal','privacy','slat'].entries()){const x=(i%3)*4,z=Math.floor(i/3)*5;for(let n=0;n<3;n++)for(const axis of ['x','z']){const w={axis,x:axis==='x'?x:x+n,z:axis==='x'?z+n:z,kind:'fence',fenceStyle,...(axis==='z'&&n===1?{gate:true}:{}),collapse:false,mount:false,material:'wood'};l.walls[edgeKey(w)]=w;}}p.spawn={level:l.id,x:11,z:8};return p;}
+
+export function materialReview(){
+ const p=roomReview(),l=p.levels[0];p.name='LW finish showroom';
+ for(const [key,t] of Object.entries(l.tiles)){const [x,z]=key.split(',').map(Number);t.material=x>=0&&x<6&&z>=0&&z<6?(x<3?'wood':'marble'):(z>5?'stone':'grass');}
+ for(const w of Object.values(l.walls)){w.material=w.axis==='x'?(w.x===3?'panel':'stone'):'brick';w.exteriorMaterial=w.material;if(w.kind==='window')w.windowStyle='colonial';if(w.kind==='door')w.doorStyle='craftsman';}
+ return p;
+}

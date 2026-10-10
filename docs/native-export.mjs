@@ -37,7 +37,7 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
  if(cache.has(cacheKey)){const cached=cache.get(cacheKey);placeAsset(cached.id);manifest.push({...cached,anchor,level,edge,join});return;}}
  const svgFrames=[];const imageData=floorImage?await loadFloorImage(floorImage):null;
  for(let i=0;i<frames.length;i++){
-  const f=frames[i];const floorColor=kit.floorMaterials.find(m=>floorImage?.endsWith(`floor-${m.id}-1x1.png`))?.color||'#c1c5b8';let body=floorImage?`<g transform="translate(${f.center.join(' ')})"><polygon points="-64,0 0,-32 64,0 0,32" fill="${floorColor}" stroke="${floorColor}" stroke-width="1"/><image href="data:image/png;base64,${imageData}" x="-64" y="-32" width="128" height="64"/></g>`:'';
+  const f=frames[i];const floorColor=kit.floorMaterials.find(m=>floorImage?.endsWith(`floor-${m.id}-1x1.png`))?.color||'#c1c5b8';let body=floorImage?`<g transform="translate(${f.center.join(' ')})"><polygon points="-64,0 0,-32 64,0 0,32" fill="${floorColor}" stroke="${floorColor}" stroke-width="1"/><image preserveAspectRatio="none" href="data:image/png;base64,${imageData}" x="-64" y="-32" width="128" height="64"/></g>`:'';
   body+=f.polygons.map(p=>`<polygon points="${p.screen.map(p=>p.join(',')).join(' ')}" ${Object.entries(p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4}).filter(([k])=>!k.startsWith('data-')&&k!=='pointer-events').map(([k,v])=>`${k}="${escape(v)}"`).join(' ')}/>`).join('');
   if(clip){const points=clip.map(v=>projectPoint(v,f.r,anchor));body=`<defs><clipPath id="clip${i}"><polygon points="${points.map(p=>p.join(',')).join(' ')}"/></clipPath></defs><g clip-path="url(#clip${i})">${body}</g>`;}
   svgFrames.push(`<g transform="translate(${(i%4)*fw-f.x0} ${Math.floor(i/4)*fh-f.y0})">${body}</g>`);
@@ -69,7 +69,7 @@ for(const [li,l]of project.levels.entries()){
   await sprite({id:`${w.kind}_${serial++}`,anchor:[x,z],level:li,kind:gate?(w.kind==='door'?'opening':'gate'):'wall',box,edge:model.edgeKey(w),decorGroup:w.decorGroup||null,exteriorDecorGroup:w.exteriorDecorGroup||null,collapse:w.collapse&&w.kind!=='fence',faces:(r,state)=>{
    if(w.kind==='fence')return geo.fenceFaces({...w,gateOpen:!!w.gate},r,geo.fencePostOwners(w,Object.values(l.walls)));
    const faces=[],polygon=(vertices,attrs)=>faces.push({vertices,attrs});
-   const paint=()=>{const exterior=geo.wallSide({...w,facing:geo.wallFacing(w,l.tiles)},r)==='back',material=exterior?(w.exteriorMaterial||w.material):w.material;return{back:false,opacity:1,fill:kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9'};};
+   const paint=()=>{const exterior=geo.wallSide({...w,facing:geo.wallFacing(w,l.tiles)},r)==='back',material=exterior?(w.exteriorMaterial||w.material):w.material;return{back:false,material,opacity:1,fill:kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9'};};
    const sx=[1,1,-1,-1][r],sz=[1,-1,-1,1][r],selection=new Set(rooms[li].filter(room=>room.kind==='indoor').flatMap(room=>room.boundaries.filter(b=>{const wall=l.walls[b.edge];return wall?.collapse&&b.outward*(wall.axis==='x'?sx:sz)>0;}).map(b=>b.edge)));
    faces.push(...wallFaces(w,{level:l,rotation:r,corners,paint:paint(),collapsed:state==='Down',cutSelection:selection}));
    return orderFaces(faces,r);

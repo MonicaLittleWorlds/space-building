@@ -1,3 +1,4 @@
+import {installStylePickers,refreshStylePickers} from './style-picker.mjs';
 import {createNativePackage,browserRasterizer} from './native-export.mjs';
 import {wallFaces} from './architecture.mjs';
 import {drawBuilderAvatar,AVATAR_HEIGHT} from './avatar.mjs';
@@ -12,13 +13,13 @@ import {cameraGridPosition,inverseCameraGridPosition,gridToScreen} from './nativ
 import {key,nodeKey,edgeKey,levelOf,blankProject,demoProject,triggerCells,rotatedStairEnd,stairFlightCells,stairSolidAt,portalAt,walkable,canPlace,walkRoute,validate,unreachableCells,parseProject} from './model.mjs';
 import kit from './kit.mjs';
 import {KIT,fenceShadowFaces,wallUsesBackShadow,wallFacing,wallSurfaceEnds,wallEndVisible,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
-import {ensureDecor,decorField,decorGroupsFor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
-import {joinReview,stairReview,doorReview,roomReview,fenceReview} from './review.mjs';
+import {toggleDecorSelection,decorHighlight,assignDecorSafely,createDecorGroup,deleteDecorGroup,ensureDecor,decorField,decorGroupsFor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
+import {joinReview,stairReview,doorReview,roomReview,fenceReview,materialReview} from './review.mjs';
 const versionGate=await requireCurrentVersion();
 await requireUniversalCode({checkUpdates:versionGate.check});
 const $=id=>document.getElementById(id), svg=$('canvas'), NS='http://www.w3.org/2000/svg';
-let project=demoProject(), savedMessage='Sample loaded. Your edits autosave locally.';
-const reviewType=new URLSearchParams(location.search).get('review'),reviewMode=['joins','stairs','doors','rooms','fences'].includes(reviewType);
+let project=blankProject(), savedMessage='One empty floor, ready to build. Your edits autosave locally.';
+const reviewType=new URLSearchParams(location.search).get('review'),reviewMode=['joins','stairs','doors','rooms','fences','materials'].includes(reviewType);
 let library=null;
 if(!reviewMode)try{
  library=new ProjectLibrary(localStorage,sessionStorage,navigator.locks);
@@ -26,7 +27,7 @@ if(!reviewMode)try{
  const opened=await library.start(project,recovery);project=opened.project;sessionStorage.removeItem('lw-update-recovery');savedMessage=opened.copied?'Opened a separate tab copy.':'Your independent project session is ready.';
 }catch{library=null;savedMessage='Local storage unavailable. Save project files to keep your work.';}
 
-if(reviewMode){project=reviewType==='fences'?fenceReview():reviewType==='rooms'?roomReview():reviewType==='stairs'?stairReview():reviewType==='doors'?doorReview():joinReview();savedMessage='Join review sample · your draft is unchanged.';}
+if(reviewMode){project=reviewType==='materials'?materialReview():reviewType==='fences'?fenceReview():reviewType==='rooms'?roomReview():reviewType==='stairs'?stairReview():reviewType==='doors'?doorReview():joinReview();savedMessage='Review sample · your draft is unchanged.';}
 ensureDecor(project);
 let active=project.levels[0].id,rotation=0,tool='floor',pending=null,playing=false,avatar=null,undo=[],redo=[],drag=false,painted=new Set(),timer=null,pan={x:0,y:0},panStart=null,panMode=false;
 let issueFocus=null;
@@ -50,14 +51,17 @@ function points(coords){return coords.map(p=>projection(...p).join(',')).join(' 
 function diamond(x,z){return [[x-.5,z-.5],[x+.5,z-.5],[x+.5,z+.5],[x-.5,z+.5]];}
 function tile(x,z,fill,stroke='#80968e',extra={}){return element('polygon',{points:points(diamond(x,z)),fill,stroke,'stroke-width':.65,...extra});}
 function endpoints(w){return w.axis==='x'?[[w.x-.5,w.z-.5],[w.x-.5,w.z+.5]]:[[w.x-.5,w.z-.5],[w.x+.5,w.z-.5]];}
-function decorColor(id){if($('overlay').value==='decor'&&$('decor-group').value)return id===$('decor-group').value?'#9ceacb':'#667b75';const i=project.decorGroups.findIndex(g=>g.id===id);return i<0?'#596968':`hsl(${(i*83+35)%360} 38% 62%)`;}
+function decorColor(id){return decorHighlight(project,id);}
+function choosingFloors(){return !playing&&!previewDrawing&&$('overlay').value==='decor'&&$('decor-kind').value==='floor';}
+function choosingWalls(){return !playing&&!previewDrawing&&$('overlay').value==='decor'&&$('decor-kind').value==='wall';}
+
 function facingWall(w){return {...w,facing:wallFacing(w,levelOf(project,active).tiles)};}
-function wallPaint(w){const exterior=wallSide(facingWall(w),rotation)==='back',material=exterior?(w.exteriorMaterial||w.material):w.material;const back=wallUsesBackShadow(facingWall(w),rotation),mount=$('overlay').value==='mount'&&w.mount;let fill=kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9';if(mount)fill='#75b6d3';if($('overlay').value==='decor')fill=decorColor(w[decorField('wall',$('decor-area').value)]);if(back)fill='#142e2a';return {back,fill,opacity:previewDrawing?1:roomWallOpacity(w,cutSelection,$('wall-view').value,+$('wall-opacity').value/100,back)};}
+function wallPaint(w){const exterior=wallSide(facingWall(w),rotation)==='back',material=exterior?(w.exteriorMaterial||w.material):w.material;const back=!choosingWalls()&&wallUsesBackShadow(facingWall(w),rotation),mount=$('overlay').value==='mount'&&w.mount;let fill=kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9';if(mount)fill='#75b6d3';if($('overlay').value==='decor'&&$('decor-kind').value==='wall')fill=decorColor(w[decorField('wall',$('decor-area').value)])||fill;if(back)fill='#142e2a';return {back,fill,material,opacity:previewDrawing?1:roomWallOpacity(w,cutSelection,$('wall-view').value,+$('wall-opacity').value/100,back)};}
 let faceQueue=null;
-function polygon(vertices,attrs){if(tool==='decor'&&$('decor-kind').value==='wall'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-decor-edge':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(tool==='select'&&!playing&&attrs['data-kind']==='window'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-piece-kind':'window','data-piece-id':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(faceQueue){faceQueue.push({vertices,attrs});return;}element('polygon',{points:points(vertices),...attrs});}
+function polygon(vertices,attrs){if(choosingFloors()&&['wall','window','door','wall-corner','fence'].includes(attrs['data-kind']))vertices=vertices.map(([x,z,h])=>[x,z,Math.min(h,18)]);if(tool==='decor'&&$('decor-kind').value==='wall'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-decor-edge':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(tool==='select'&&!playing&&attrs['data-kind']==='window'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-piece-kind':'window','data-piece-id':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(faceQueue){faceQueue.push({vertices,attrs});return;}element('polygon',{points:points(vertices),...attrs});}
 function drawCorner(corner){for(const face of wallCornerFaces(corner,rotation)){const {back,fill,opacity}=wallPaint(face.wall);const capBack=corner.walls.every(w=>wallUsesBackShadow(facingWall(w),rotation));polygon(face.vertices,{fill:face.part==='cap'?(capBack?'#263e35':'#e2e7d9'):fill,opacity:face.part==='cap'?Math.max(...corner.walls.map(w=>wallPaint(w).opacity)):opacity,'pointer-events':'none','data-kind':'wall-corner','data-corner-id':corner.id,'data-level':active,'data-part':face.part,'data-material':face.wall.material||'blank'});}}
-function collapsedWall(w){return !previewDrawing&&['auto','cut'].includes($('wall-view').value)&&cutSelection.has(edgeKey(w));}
-function drawWall(w,corners=[]){for(const face of wallFaces(w,{level:levelOf(project,active),rotation,corners,collapsed:collapsedWall(w),paint:wallPaint(w),cutSelection}))polygon(face.vertices,face.attrs);}
+function collapsedWall(w){if(choosingFloors())return true;if(choosingWalls())return false;return !previewDrawing&&['auto','cut'].includes($('wall-view').value)&&cutSelection.has(edgeKey(w));}
+function drawWall(w,corners=[]){for(const face of wallFaces(w,{level:levelOf(project,active),rotation,corners,collapsed:collapsedWall(w),paint:wallPaint(w),cutSelection:choosingFloors()?new Set(Object.keys(levelOf(project,active).walls)):cutSelection}))polygon(face.vertices,face.attrs);}
 function drawItem(i){const x=i.x,z=i.z;for(const [a,b,fill] of [[[x-.3,z+.3],[x+.3,z+.3],'#728b83'],[[x+.3,z-.3],[x+.3,z+.3],'#506b63']])element('polygon',{points:points([[...a,0],[...b,0],[...b,35],[...a,35]]),fill,stroke:'#bfd3c3','pointer-events':'none'});element('polygon',{points:points([[x-.3,z-.3,35],[x+.3,z-.3,35],[x+.3,z+.3,35],[x-.3,z+.3,35]]),fill:'#a9c1b3',stroke:'#bfd3c3','pointer-events':'none'});}
 function drawSpaceUndershadow(level){
   const cells=Object.keys(level.tiles);if(!cells.length)return;
@@ -71,17 +75,18 @@ function render(){
   // Measure once before SVG writes; per-face layout reads make rotation and walking stall.
   const width=svg.clientWidth,height=svg.clientHeight;viewMetrics={width,height,scale:+$('zoom').value/100*Math.min(1,width/780,height/720)};
   const l=levelOf(project,active);if(!roomCache.has(l))roomCache.set(l,roomLayout(l));const cutaway=roomCutaway(l,{avatar:playing?avatar:null,rotation,mode:$('wall-view').value,rooms:roomCache.get(l)});cutSelection=cutaway.selected;svg.replaceChildren();const nativeBackground=$('background-view').value==='native';svg.style.background=nativeBackground?'linear-gradient(#9BECFC,#00C4F5)':'';svg.parentElement.classList.toggle('native-background',nativeBackground);
-  if(nativeBackground)drawSpaceUndershadow(l);
+  if(nativeBackground&&!choosingWalls())drawSpaceUndershadow(l);
   const corners=[[0,0],[svg.clientWidth,0],[0,svg.clientHeight],[svg.clientWidth,svg.clientHeight]].map(([x,y])=>gridAt(x,y));
   const minX=Math.floor(Math.min(...corners.map(p=>p.wx)))-1,maxX=Math.ceil(Math.max(...corners.map(p=>p.wx)))+1,minZ=Math.floor(Math.min(...corners.map(p=>p.wz)))-1,maxZ=Math.ceil(Math.max(...corners.map(p=>p.wz)))+1;
   if(!nativeBackground)for(let x=minX;x<=maxX;x++)for(let z=minZ;z<=maxZ;z++)tile(x,z,'transparent','#49615b',{'stroke-opacity':.35,'data-cell':key(x,z)});
   const wells=project.stairs.filter(s=>stairLevels(project,s).upper.level===active).map(s=>stairwell(project,s,rotation)).filter(Boolean);
   const holes=new Set(wells.flatMap(w=>w.cells.map(c=>key(c.x,c.z))));
+  const floorBase=element('g',{'data-kind':'floor-underlay'});
   const largePieces=new Map();
   for(const t of Object.values(l.tiles)){if(t.size!==2||!/^2:-?\d+,-?\d+$/.test(t.piece||''))continue;const [ox,oz]=t.piece.slice(2).split(',').map(Number);if([0,1,2,3].every(i=>{const c=l.tiles[key(ox+i%2,oz+Math.floor(i/2))];return !holes.has(key(ox+i%2,oz+Math.floor(i/2)))&&c?.piece===t.piece&&c.material===t.material;}))largePieces.set(t.piece,{x:ox+.5,z:oz+.5,material:t.material||'blank'});}
-  for(const [k,t] of Object.entries(l.tiles)){const [x,z]=k.split(',').map(Number);if(holes.has(k)||!onScreen(x,z))continue;const overlay=$('overlay').value;let fill=kit.floorMaterials.find(m=>m.id===t.material)?.color||'#c1c7b7';if(overlay==='walk')fill=walkable(project,{level:active,x,z})?'#73b79f':'#b86f70';if(overlay==='place')fill=canPlace(project,{level:active,x,z})?'#79aebb':'#a16f68';if(overlay==='decor')fill=decorColor(t.decorGroup);tile(x,z,fill,fill,{'data-floor':k,'data-level':active});if((overlay==='none'||overlay==='mount')&&!largePieces.has(t.piece)){const [px,py]=projection(x,z),s=scale();element('image',{href:`assets/floor-${kit.floorMaterials.some(m=>m.id===t.material)?t.material:'blank'}-1x1.png`,x:px-64*s,y:py-32*s,width:128*s,height:64*s,'pointer-events':'none'});}const corners=diamond(x,z);for(const [i,[dx,dz]] of [[0,-1],[1,0],[0,1],[-1,0]].entries()){const neighbor=l.tiles[key(x+dx,z+dz)];if($('show-grid').checked&&(!t.piece||neighbor?.piece!==t.piece)){const a=projection(...corners[i]),b=projection(...corners[(i+1)%4]);element('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#6f8577','stroke-width':.6,opacity:.5,'pointer-events':'none'});}}}
-  if(['none','mount'].includes($('overlay').value))for(const piece of largePieces.values()){const [px,py]=projection(piece.x,piece.z),s=scale();element('image',{href:`assets/floor-${kit.floorMaterials.some(m=>m.id===piece.material)?piece.material:'blank'}-2x2.png`,x:px-128*s,y:py-64*s,width:256*s,height:128*s,'pointer-events':'none','data-piece-size':'2'});}
-  for(const [index,well] of wells.entries()){
+  for(const [k,t] of Object.entries(l.tiles)){if(choosingWalls())continue;const [x,z]=k.split(',').map(Number);if(holes.has(k)||!onScreen(x,z))continue;const overlay=$('overlay').value;let fill=kit.floorMaterials.find(m=>m.id===t.material)?.color||'#c1c7b7';if(overlay==='walk')fill=walkable(project,{level:active,x,z})?'#73b79f':'#b86f70';if(overlay==='place')fill=canPlace(project,{level:active,x,z})?'#79aebb':'#a16f68';floorBase.append(tile(x,z,fill,fill,{'data-floor':k,'data-level':active}));if((overlay==='none'||overlay==='mount'||overlay==='decor')&&(!largePieces.has(t.piece)||overlay==='decor')){const [px,py]=projection(x,z),s=scale();element('image',{preserveAspectRatio:'none',href:`assets/floor-${kit.floorMaterials.some(m=>m.id===t.material)?t.material:'blank'}-1x1.png`,x:px-64*s,y:py-32*s,width:128*s,height:64*s,'pointer-events':'none'});}if(overlay==='decor'&&$('decor-kind').value==='floor'&&t.decorGroup){const color=decorColor(t.decorGroup),selected=t.decorGroup===$('decor-group').value;const marker=tile(x,z,color,color,{'fill-opacity':selected?.36:.17,'stroke-width':selected?2.5:1.3,'pointer-events':'none'});element('title',{},marker).textContent=project.decorGroups.find(g=>g.id===t.decorGroup)?.name||'';}const corners=diamond(x,z);for(const [i,[dx,dz]] of [[0,-1],[1,0],[0,1],[-1,0]].entries()){const neighbor=l.tiles[key(x+dx,z+dz)];if($('show-grid').checked&&(!t.piece||neighbor?.piece!==t.piece)){const a=projection(...corners[i]),b=projection(...corners[(i+1)%4]);element('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#6f8577','stroke-width':.6,opacity:.5,'pointer-events':'none'});}}}
+  if(['none','mount'].includes($('overlay').value))for(const piece of largePieces.values()){const [px,py]=projection(piece.x,piece.z),s=scale();element('image',{preserveAspectRatio:'none',href:`assets/floor-${kit.floorMaterials.some(m=>m.id===piece.material)?piece.material:'blank'}-2x2.png`,x:px-128*s,y:py-64*s,width:256*s,height:128*s,'pointer-events':'none','data-piece-size':'2'});}
+  for(const [index,well] of wells.entries()){if(choosingWalls())continue;
     const clipId=`stairwell-${index}`,clip=element('clipPath',{id:clipId});
     element('polygon',{points:points(well.opening)},clip);
     renderParent=element('g',{'clip-path':`url(#${clipId})`,'data-kind':'stairwell','data-level':active});
@@ -119,7 +124,7 @@ function render(){
   const mesh=(faces,attrs)=>{for(const face of faces)polygon(face.vertices,{fill:face.color,stroke:face.color,'stroke-width':.25,'pointer-events':'none','data-part':face.part,...attrs});};
   for(const w of visible.walls.filter(w=>w.kind==='fence'&&onScreen(w.x,w.z,KIT.fenceHeight))){
     const posts=fencePostOwners(w,visible.walls);
-    mesh(fenceFaces({...w,gateOpen:!!(w.gate&&playing&&avatar?.level===active&&Math.hypot(avatar.x-w.x,avatar.z-w.z)<1.8)},rotation,posts),{'data-kind':'fence','data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-level':active,'data-fence-style':w.fenceStyle,'data-gate':!!w.gate,...($('overlay').value==='decor'?{fill:decorColor(w[decorField('wall',$('decor-area').value)]),stroke:decorColor(w[decorField('wall',$('decor-area').value)])}:{})});
+    mesh(fenceFaces({...w,gateOpen:!!(w.gate&&playing&&avatar?.level===active&&Math.hypot(avatar.x-w.x,avatar.z-w.z)<1.8)},rotation,posts),{'data-kind':'fence','data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-level':active,'data-fence-style':w.fenceStyle,'data-gate':!!w.gate,...($('overlay').value==='decor'&&$('decor-kind').value==='wall'&&decorColor(w[decorField('wall',$('decor-area').value)])?{fill:decorColor(w[decorField('wall',$('decor-area').value)]),stroke:decorColor(w[decorField('wall',$('decor-area').value)])}:{})});
   }
   for(const stair of project.stairs)for(const end of [stair.a,stair.b])if(end.level===active&&end.style&&stairLevels(project,stair).lower===end)mesh(stairFaces(end,rotation),{'data-kind':'stair','data-level':active,'data-stair-width':end.width,'data-stair-style':end.style,...(tool==='select'&&!playing?{'pointer-events':'visiblePainted','data-piece-kind':'stair','data-piece-id':stair.id+':'+(end===stair.a?'a':'b')}:{})});
   for(const i of l.items)mesh(itemFaces(i,rotation),{'data-kind':'item','data-level':active});
@@ -141,7 +146,7 @@ function render(){
   $('room-list').replaceChildren();for(const room of l.rooms||[]){const row=document.createElement('div');row.className='stair-row';row.textContent=room.name+' · '+room.kind;const remove=document.createElement('button');remove.textContent='×';remove.ariaLabel='Remove room area '+room.name;remove.disabled=playing;remove.onclick=()=>{history();l.rooms=l.rooms.filter(r=>r.id!==room.id);changed();};row.append(remove);$('room-list').append(row);}
   $('active-room').textContent=playing?'Walking area: '+(cutaway.room?.name||'Outside'):'Closed rooms are detected automatically. Mark open-plan rooms with Room area.';
   $('checks').replaceChildren();const issues=validate(project);for(const issue of issues.length?issues:['Entry and reachable floor checks pass.']){const el=document.createElement('div');el.className=`check ${issues.length?'':'good'}`;el.textContent=(issues.length?'• ':'✓ ')+issue;$('checks').append(el);}
-  refreshToolSettings();refreshSimpleView();refreshPieces();
+  refreshToolSettings();refreshSimpleView();refreshPieces();refreshStylePickers();
   $('counts').textContent=`${project.levels.length} floors · ${Object.keys(l.tiles).length} tiles · ${joins.length} auto corners · ${project.stairs.length} stair links`;
   $('view-label').textContent=l.name.toUpperCase()+' · '+['NORTH','EAST','SOUTH','WEST'][rotation]+' VIEW';
   renderIssueLocations();
@@ -199,7 +204,7 @@ function drawPlacementPreview(){
  try{
   if(tool==='floor'){
    const cells=brushCells(x,z,+$('floor-size').value),size=+$('floor-size').value,c=cells[0],center=projection(c.x+(size-1)/2,c.z+(size-1)/2),s=scale();
-   element('image',{href:`assets/floor-${$('floor-material').value}-${size}x${size}.png`,x:center[0]-64*size*s,y:center[1]-32*size*s,width:128*size*s,height:64*size*s});cells.forEach(footprint);
+   element('image',{preserveAspectRatio:'none',href:`assets/floor-${$('floor-material').value}-${size}x${size}.png`,x:center[0]-64*size*s,y:center[1]-32*size*s,width:128*size*s,height:64*size*s});cells.forEach(footprint);
   }else if(['wall','door','window','fence','gate'].includes(tool)){
    const existing=l.walls[edgeKey(edge)];
    const w=tool==='gate'&&existing?.kind==='fence'?{...existing,gate:true}:{...edge,kind:tool==='gate'?'fence':tool,gate:tool==='gate',material:$('wall-material').value,doorStyle:$('door-style').value,windowStyle:$('window-style').value,fenceStyle:$('fence-style').value,...($('facing').value==='auto'?{}:{facing:+$('facing').value})};
@@ -219,17 +224,16 @@ function drawPlacementPreview(){
 }
 function queuePlacementPreview(){if(previewFrame!==null)return;previewFrame=requestAnimationFrame(()=>{previewFrame=null;drawPlacementPreview();});}
 function edit(e){const p=unproject(e),x=Math.round(p.wx),z=Math.round(p.wz),n={level:active,x,z},l=levelOf(project,active),edge=nearestEdge(p);if(!Number.isSafeInteger(x)||!Number.isSafeInteger(z))return;const hitEdge=tool==='decor'&&$('decor-kind').value==='wall'?document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-decor-edge]')?.dataset.decorEdge:null;const stamp=tool+(hitEdge||(['wall','door','window','fence','gate','face'].includes(tool)||(tool==='decor'&&$('decor-kind').value==='wall')?edgeKey(edge):key(x,z)));if(painted.has(stamp))return;painted.add(stamp);
-  const groupFor=kind=>project.decorGroups.some(g=>g.id===$('decor-group').value&&g.kind===kind&&g.level===active&&g.area===$('decor-area').value)?$('decor-group').value:null;
   if(tool==='room'){
     if(!l.tiles[key(x,z)]){status('Choose a floor tile for each room corner.');return;}
     if(!roomStart||roomStart.level!==active){roomStart={level:active,x,z};render();return;}
     l.rooms??=[];l.rooms.push({id:crypto.randomUUID(),name:($('room-name').value.trim()||'Room '+(l.rooms.length+1)).slice(0,80),kind:$('room-kind').value,x:Math.min(x,roomStart.x),z:Math.min(z,roomStart.z),width:Math.abs(x-roomStart.x)+1,depth:Math.abs(z-roomStart.z)+1});roomStart=null;changed();return;
   }
-  if(tool==='floor')for(const c of brushCells(x,z,+$('floor-size').value))l.tiles[key(c.x,c.z)]={walk:$('walk').checked,place:$('place').checked,material:$('floor-material').value,piece:c.piece,size:c.size,decorGroup:groupFor('floor')};
+  if(tool==='floor')for(const c of brushCells(x,z,+$('floor-size').value))l.tiles[key(c.x,c.z)]={walk:$('walk').checked,place:$('place').checked,material:$('floor-material').value,piece:c.piece,size:c.size,decorGroup:l.tiles[key(c.x,c.z)]?.decorGroup??null};
   if(tool==='gate'&&l.walls[edgeKey(edge)]?.kind==='fence')l.walls[edgeKey(edge)]={...l.walls[edgeKey(edge)],gate:true};
-  else if(['wall','door','window','fence','gate'].includes(tool))l.walls[edgeKey(edge)]={...edge,kind:tool==='gate'?'fence':tool,...(tool==='gate'?{gate:true}:{}),...(tool==='door'?{doorStyle:$('door-style').value}:{}),...(tool==='window'?{windowStyle:$('window-style').value}:{}),collapse:$('collapse').checked,mount:tool==='wall'&&$('mount').checked,material:$('wall-material').value,...($('facing').value==='auto'?{}:{facing:+$('facing').value}),fenceStyle:$('fence-style').value,[decorField('wall',$('decor-area').value)]:groupFor('wall')};
+  else if(['wall','door','window','fence','gate'].includes(tool))l.walls[edgeKey(edge)]={...edge,kind:tool==='gate'?'fence':tool,...(tool==='gate'?{gate:true}:{}),...(tool==='door'?{doorStyle:$('door-style').value}:{}),...(tool==='window'?{windowStyle:$('window-style').value}:{}),collapse:$('collapse').checked,mount:tool==='wall'&&$('mount').checked,material:$('wall-material').value,...($('facing').value==='auto'?{}:{facing:+$('facing').value}),fenceStyle:$('fence-style').value,decorGroup:l.walls[edgeKey(edge)]?.decorGroup??null,exteriorDecorGroup:l.walls[edgeKey(edge)]?.exteriorDecorGroup??null};
   if(tool==='face'){const w=l.walls[edgeKey(edge)];if(w&&w.kind!=='fence')w.facing=-wallFacing(w,l.tiles);}
-  if(tool==='decor'){const kind=$('decor-kind').value,group=$('decor-group').value;if(!group)return;const hit=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-decor-edge]');const id=kind==='floor'?key(x,z):(hit?.dataset.decorEdge||edgeKey(edge)),target=(kind==='floor'?l.tiles:l.walls)[id];if(!decorRemoving||target?.[decorField(kind,$('decor-area').value)]===group)assignDecor(project,active,kind,id,decorRemoving?null:group,$('decor-area').value);}
+  if(tool==='decor'){const kind=$('decor-kind').value,group=$('decor-group').value;if(!group)return;const hit=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-decor-edge]');const id=kind==='floor'?key(x,z):(hit?.dataset.decorEdge||edgeKey(edge)),target=(kind==='floor'?l.tiles:l.walls)[id];if(!decorRemoving||target?.[decorField(kind,$('decor-area').value)]===group){const result=decorRemoving?assignDecorSafely(project,active,kind,id,null,$('decor-area').value):toggleDecorSelection(project,active,kind,id,group,$('decor-area').value,$('decor-reassign').checked);if(!result.ok&&result.owner)status(`Protected: already in ${project.decorGroups.find(g=>g.id===result.owner)?.name}. Enable moving surfaces only if you want to reassign it.`);}}
   if(tool==='item'){if(!canPlace(project,n)){status('This tile is not available for item placement.');return;}l.items.push({x,z});}
   if(tool==='spawn'){if(!walkable(project,n)||portalAt(project,n)){status('Entry needs walkable floor outside the stairs.');return;}project.spawn=n;}
   if(tool==='stairs'){
@@ -298,26 +302,33 @@ $('kit-count').textContent=`${kit.assets.length} original sprites · ${kit.floor
 function refreshDecor(){
  const area=$('decor-area');area.querySelector('[value="outside"]').disabled=active!==project.levels[0].id;if(active!==project.levels[0].id&&area.value==='outside')area.value='inside';
  $('decor-scope').textContent=(area.value==='outside'?'Outside · ':'Inside · ')+(levelOf(project,active)?.name||'');
- const old=$('decor-group').value;$('decor-group').replaceChildren();const none=document.createElement('option');none.value='';none.textContent='Fixed material (not linked)';$('decor-group').append(none);
- for(const g of decorGroupsFor(project,active,area.value,$('decor-kind').value)){const o=document.createElement('option');o.value=g.id;o.textContent=g.name;$('decor-group').append(o);}
+ const old=$('decor-group').value;$('decor-group').replaceChildren();const none=document.createElement('option');none.value='';none.textContent='Choose an editable area…';$('decor-group').append(none);
+ for(const g of decorGroupsFor(project,active,area.value,$('decor-kind').value)){const o=document.createElement('option');o.value=g.id;const count=Object.values(g.kind==='floor'?levelOf(project,active).tiles:levelOf(project,active).walls).filter(v=>v[decorField(g.kind,g.area)]===g.id).length;o.textContent=`${g.name} · ${count} surfaces`;$('decor-group').append(o);}
  if([...$('decor-group').options].some(o=>o.value===old))$('decor-group').value=old;
- const group=project.decorGroups.find(g=>g.id===$('decor-group').value);$('decor-editable').disabled=!group||playing;$('decor-editable').checked=!!group?.editable;
+ const group=project.decorGroups.find(g=>g.id===$('decor-group').value);$('decor-color').disabled=!group||playing;if(group)$('decor-color').value=decorColor(group.id);const legend=$('decor-legend');legend.replaceChildren();for(const g of decorGroupsFor(project,active,area.value,$('decor-kind').value)){const button=document.createElement('button');button.className='decor-chip';button.style.borderLeft=`8px solid ${decorColor(g.id)}`;button.textContent=g.name;button.setAttribute('aria-pressed',String(g.id===group?.id));button.onclick=()=>{$('decor-group').value=g.id;$('decor-reassign').checked=false;$('overlay').value='decor';render();};legend.append(button);}$('decor-editable').disabled=!group||playing;$('decor-editable').checked=!!group?.editable;
  if(document.activeElement!==$('decor-label-name'))$('decor-label-name').value=group?.name||'';
- for(const id of ['decor-label-name','rename-decor','paint-decor','remove-decor','decor-finish','apply-decor-finish'])$(id).disabled=!group||playing;
+ for(const id of ['delete-decor','decor-label-name','rename-decor','paint-decor','remove-decor','decor-finish','apply-decor-finish'])$(id).disabled=!group||playing;
  for(const id of ['decor-new-name','add-decor'])$(id).disabled=playing;
  const members=group?Object.values(group.kind==='floor'?levelOf(project,active).tiles:levelOf(project,active).walls).filter(v=>v[decorField(group.kind,group.area)]===group.id).length:0;
  const finish=$('decor-finish'),finishOld=finish.value;finish.replaceChildren();for(const m of ($('decor-kind').value==='floor'?kit.floorMaterials:kit.wallMaterials)){const o=document.createElement('option');o.value=m.id;o.textContent=m.name||m.id;finish.append(o);}if([...finish.options].some(o=>o.value===finishOld))finish.value=finishOld;
- $('decor-members').textContent=group?`${group.name}: ${members} ${group.kind==='floor'?'floor tiles':'wall pieces'} assigned. Saved with this project.`:'Create or choose a label to start selecting surfaces.';
+ $('decor-members').textContent=group?`${group.name}: ${members} ${group.kind==='floor'?'floor tiles':'wall pieces'} assigned. Saved with this project.`:'No area selected. To change a finish only, use the Floor or Wall tool on the left.';
  $('done-decor').hidden=tool!=='decor';$('paint-decor').classList.toggle('active',tool==='decor'&&!decorRemoving);$('remove-decor').classList.toggle('active',tool==='decor'&&decorRemoving);
- $('decor-selection-help').textContent=tool==='decor'?(decorRemoving?'Click or drag over highlighted surfaces to remove them.':'Click or drag across as many tiles or walls as you want. Mint green surfaces belong to this label.'):'Labels are saved in your project, for the selected floor and surface type.';
+ $('decor-selection-help').textContent=tool==='decor'?(decorRemoving?'Click or drag over highlighted surfaces to remove them.':'Click to add a surface; click it again to remove it. Drag to toggle several surfaces once per stroke. Other areas keep their colors and stay protected.'):'Labels are saved in your project, for the selected floor and surface type.';
 }
-$('decor-area').onchange=render;$('decor-group').onchange=()=>{$('overlay').value='decor';render();};
+$('decor-color').onchange=()=>{const g=project.decorGroups.find(g=>g.id===$('decor-group').value);if(!g||playing)return;history();g.color=$('decor-color').value;changed();};
+$('decor-area').onchange=()=>{$('decor-reassign').checked=false;render();};$('decor-group').onchange=()=>{$('decor-reassign').checked=false;$('overlay').value='decor';render();};
 $('decor-editable').onchange=()=>{const g=project.decorGroups.find(g=>g.id===$('decor-group').value);if(!g||playing)return;history();g.editable=$('decor-editable').checked;changed();};
-$('decor-kind').onchange=render;
+$('decor-kind').onchange=()=>{$('decor-reassign').checked=false;render();};
 function startDecorSelection(remove=false){if(playing||!$('decor-group').value)return;decorRemoving=remove;tool='decor';$('overlay').value='decor';pending=null;render();}
 $('paint-decor').onclick=()=>startDecorSelection();$('remove-decor').onclick=()=>startDecorSelection(true);
 $('done-decor').onclick=()=>{tool='select';$('overlay').value='none';render();status('Décor labels and their surfaces are saved with this project.');};
-$('add-decor').onclick=()=>{if(playing)return;const name=$('decor-new-name').value.trim();if(!name){$('decor-new-name').focus();status('Type a décor label name above Create label.');return;}history();const g={id:'lw_'+crypto.randomUUID().replaceAll('-',''),name:name.slice(0,80),kind:$('decor-kind').value,editable:true,level:active,area:$('decor-area').value};project.decorGroups.push(g);refreshDecor();$('decor-group').value=g.id;$('decor-new-name').value='';changed();startDecorSelection();};
+$('add-decor').onclick=()=>{if(playing)return;const name=$('decor-new-name').value.trim();try{
+ const candidate=structuredClone(project);const group=createDecorGroup(candidate,{name,kind:$('decor-kind').value,level:active,area:$('decor-area').value});
+ history();project=candidate;refreshDecor();$('decor-group').value=group.id;$('decor-new-name').value='';changed();
+ status('Area created. Click Select surfaces to choose what belongs to it.');
+}catch(e){status(e.message);$('decor-new-name').focus();}};
+$('delete-decor').onclick=()=>{const id=$('decor-group').value;if(playing||!id)return;history();deleteDecorGroup(project,id);tool='select';changed();status('Editable area removed. Your surfaces and finishes are unchanged. Undo restores the area.');};
+
 $('rename-decor').onclick=()=>{const g=project.decorGroups.find(g=>g.id===$('decor-group').value),name=$('decor-label-name').value.trim();if(playing||!g||!name)return;history();g.name=name.slice(0,80);changed();status('Décor label renamed.');};
 $('apply-decor-finish').onclick=()=>{const g=project.decorGroups.find(g=>g.id===$('decor-group').value);if(!g||playing)return;history();const l=levelOf(project,active),field=decorField(g.kind,g.area);for(const v of Object.values(g.kind==='floor'?l.tiles:l.walls))if(v[field]===g.id)v[g.kind==='wall'&&g.area==='outside'?'exteriorMaterial':'material']=$('decor-finish').value;changed();status('Finish applied to this label’s surfaces.');};
 $('export-decor').onclick=()=>saveData(decorManifest(project),project.name+'-decor-mapping','decor').catch(e=>status(e.message));
@@ -336,7 +347,7 @@ function setupRightPanel(){
   const button=document.createElement('button');button.type='button';button.textContent=label;button.id='sidebar-tab-'+id;button.setAttribute('role','tab');button.setAttribute('aria-controls','sidebar-panel-'+id);
   const panel=document.createElement('section');panel.id='sidebar-panel-'+id;panel.className='sidebar-panel';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
   const intro=document.createElement('p');intro.className='muted';intro.textContent=help;panel.append(intro);panels[id]=panel;right.append(panel);
-  button.onclick=()=>{for(const b of tabs.children){const selected=b===button;b.classList.toggle('active',selected);b.setAttribute('aria-selected',String(selected));}for(const [key,p] of Object.entries(panels))p.hidden=key!==id;};
+  button.onclick=()=>{for(const b of tabs.children){const selected=b===button;b.classList.toggle('active',selected);b.setAttribute('aria-selected',String(selected));}for(const [key,p] of Object.entries(panels))p.hidden=key!==id;if(id==='decor')$('overlay').value='decor';else if($('overlay').value==='decor'){$('overlay').value='none';if(tool==='decor')tool='select';}if(viewMetrics)render();};
   tabs.append(button);
  }
  const move=(id,panel)=>panels[panel].append($(id).closest('.section'));
@@ -356,9 +367,9 @@ function setupRightPanel(){
  $('decor-kind').closest('label').firstChild.textContent='2. What can change? ';
  $('decor-area').closest('label').firstChild.textContent='1. Choose an area ';
  $('decor-area').closest('.section').querySelector('.eyebrow').textContent='PLAYER DECORATING';
- const decorHelp=$('paint-decor').nextElementSibling;if(decorHelp?.tagName==='P')decorHelp.textContent='Choose or add a group, enable editing, then click Choose surfaces and paint the floors or walls that should change together. Your choices save with the project. Game import is still being connected.';
+ const decorHelp=$('paint-decor').nextElementSibling;if(decorHelp?.tagName==='P')decorHelp.textContent='Only selected surfaces change together in-game. Creating an area does not select or repaint anything.';
  $('decor-group').closest('label').firstChild.textContent='3. Choose a décor label ';
- $('paint-decor').textContent='Add tiles / walls to label';$('add-decor').textContent='Create label & select surfaces';$('export-build').textContent='Export space build';
+ $('paint-decor').textContent='Select surfaces for this area';$('add-decor').textContent='Create editable area';$('export-build').textContent='Export space build';
  const viewSection=$('wall-view').closest('.section');viewSection.querySelector('.eyebrow').textContent='DISPLAY OPTIONS';
  const explanations=[...viewSection.querySelectorAll('p')];if(explanations[0])explanations[0].textContent='Lower values make the walls easier to see through.';if(explanations[1])explanations[1].textContent='Use Walk test above the canvas to try these wall settings.';
  const stairHelp=$('stairs').closest('.section').querySelector('p');if(stairHelp)stairHelp.textContent='These stairs link your floors. In Walk test, click the arrow at the stair base to travel to the other floor.';
@@ -390,7 +401,7 @@ function refreshPieces(){
 }
 function loadPieceControls(){
  const kind=$('piece-kind').value,t=decorPieces(project,active,kind).find(t=>t.id===$('piece-target').value),v=t?.value;
- $('piece-style').replaceChildren();const styles=kind==='window'?[['plain','Plain glass'],['divided','Divided panes'],['high','High window']]:[['masonry','Solid masonry'],['timber','Timber with risers + rails'],['open','Open timber + rails']];
+ $('piece-style').replaceChildren();const styles=kind==='window'?[['plain','Plain glass'],['divided','Divided panes'],['high','High window'],['casement','Tall casement'],['colonial','Six-pane sash']]:[['masonry','Solid masonry'],['timber','Timber with risers + rails'],['open','Open timber + rails'],['classic','Classic balustrade'],['iron','Timber and iron']];
  if(v?.style==='basic')styles.unshift(['basic','Basic solid steps']);for(const [id,name] of styles){const o=document.createElement('option');o.value=id;o.textContent=name;$('piece-style').append(o);}
  if(v)$('piece-style').value=kind==='window'?(v.windowStyle||'divided'):v.style;
  $('piece-color-label').textContent=kind==='window'?'Window frame':'Steps and body';$('piece-accent-label').textContent=kind==='window'?'Glass tint':'Handrails and supports';
@@ -418,7 +429,7 @@ $('rotate-piece-left').onclick=()=>rotatePiece(-1);$('rotate-piece-right').oncli
 $('piece-kind').onchange=()=>{pieceSelection='';refreshPieces();};$('piece-target').onchange=()=>{pieceSelection='';refreshPieces();};
 $('apply-piece').onclick=()=>{if(playing)return;const kind=$('piece-kind').value,id=$('piece-target').value;if(!id)return;history();const appearance=kind==='window'?{frameColor:$('piece-color').value,glassColor:$('piece-accent').value}:{bodyColor:$('piece-color').value,railColor:$('piece-accent').value};applyPieceDecor(project,active,kind,id,$('piece-style').value,appearance);changed();status('Style and colors updated on the selected '+kind+'.');};
 $('reset-piece').onclick=()=>{if(playing)return;const t=decorPieces(project,active,$('piece-kind').value).find(t=>t.id===$('piece-target').value);if(!t)return;history();delete t.value.appearance;changed();status('Default colors restored.');};
-setupToolSettings();setupRightPanel();refreshDecor();
+setupToolSettings();setupRightPanel();refreshDecor();installStylePickers();
 new ResizeObserver(render).observe(svg);render();status(savedMessage);
 
 function saveForUpdate(){if(reviewMode)return;if(pending)throw Error('Finish or cancel your stair connection first.');project.name=$('name').value.trim().slice(0,120)||'Untitled LW space';const data=JSON.stringify(project);sessionStorage.setItem('lw-update-recovery',data);if(!library)throw Error('Save your project file before updating.');library.save(project);}

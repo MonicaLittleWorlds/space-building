@@ -1,5 +1,5 @@
 export function ensureDecor(p){
- p.decorGroups??=[{id:'lw_floor_interior',name:'Interior floors',kind:'floor',editable:true},{id:'lw_floor_outdoor',name:'Outdoor ground',kind:'floor',editable:true},{id:'lw_wall_interior',name:'Interior walls',kind:'wall',editable:true}];
+ p.decorGroups??=[];
  const original=[...p.decorGroups],ground=p.levels[0]?.id;
  for(const g of original){
   if(g.level)continue;
@@ -12,11 +12,6 @@ export function ensureDecor(p){
    let id=g.id.slice(0,60)+'_level_'+(index+1);while(p.decorGroups.some(v=>v.id===id))id+='x';
    const copy={...g,id,level:l.id,area:'inside'};p.decorGroups.push(copy);for(const v of members)v.decorGroup=id;
   }
- }
- for(const [i,l] of p.levels.entries())for(const area of i===0?['inside','outside']:['inside'])for(const kind of ['floor','wall']){
-  if(p.decorGroups.some(g=>g.level===l.id&&g.area===area&&g.kind===kind))continue;
-  let id=`lw_${kind}_${area}_${i+1}`;while(p.decorGroups.some(g=>g.id===id))id+='x';
-  p.decorGroups.push({id,name:kind==='floor'?'Floor finishes':'Wall finishes',kind,editable:true,level:l.id,area});
  }
  return p;
 }
@@ -36,8 +31,37 @@ export function decorPieces(p,level,kind){
 }
 export function applyPieceDecor(p,level,kind,id,style,appearance){
  const piece=decorPieces(p,level,kind).find(t=>t.id===id);if(!piece)return false;
- const styles=kind==='window'?['plain','divided','high']:['basic','masonry','timber','open'];
+ const styles=kind==='window'?['plain','divided','high','casement','colonial']:['basic','masonry','timber','open','classic','iron'];
  const fields=kind==='window'?['frameColor','glassColor']:['bodyColor','railColor'];
  if(!styles.includes(style)||!appearance||Object.keys(appearance).some(k=>!fields.includes(k))||Object.values(appearance).some(c=>!/^#[0-9a-f]{6}$/i.test(c)))return false;
  piece.value[kind==='window'?'windowStyle':'style']=style;piece.value.appearance={...appearance};return true;
+}
+
+export function createDecorGroup(p,{name,kind,level,area,id}){
+ ensureDecor(p);name=String(name||'').trim().slice(0,80);
+ if(!name)throw Error('Give this editable area a name first.');
+ if(!p.levels.some(l=>l.id===level)||!['floor','wall'].includes(kind)||!['inside','outside'].includes(area)||(area==='outside'&&p.levels[0].id!==level))throw Error('Choose a valid floor and surface type.');
+ if(p.decorGroups.some(g=>g.level===level&&g.area===area&&g.kind===kind&&g.name.toLowerCase()===name.toLowerCase()))throw Error('An editable area with this name already exists here. Choose it from the list.');
+ const group={id:id||'lw_'+crypto.randomUUID().replaceAll('-',''),name,kind,level,area,editable:true};p.decorGroups.push(group);return group;
+}
+export function deleteDecorGroup(p,id){
+ const group=p.decorGroups.find(g=>g.id===id);if(!group)return false;
+ for(const l of p.levels)for(const value of Object.values(group.kind==='floor'?l.tiles:l.walls))for(const field of ['decorGroup','exteriorDecorGroup'])if(value[field]===id)value[field]=null;
+ p.decorGroups=p.decorGroups.filter(g=>g.id!==id);return true;
+}
+
+export const DECOR_COLORS=['#e2ad54','#67b9dc','#d785a8','#92c577','#b19bdf','#e58c6b','#58c4b3','#d2c35c'];
+export function decorHighlight(p,id){const index=p.decorGroups.findIndex(g=>g.id===id);return index<0?null:p.decorGroups[index].color||DECOR_COLORS[index%DECOR_COLORS.length];}
+export function assignDecorSafely(p,level,kind,id,group,area='inside',replace=false){
+ const target=(kind==='floor'?p.levels.find(l=>l.id===level)?.tiles:p.levels.find(l=>l.id===level)?.walls)?.[id];
+ const owner=target?.[decorField(kind,area)];
+ if(group&&owner&&owner!==group&&!replace)return {ok:false,owner};
+ return {ok:assignDecor(p,level,kind,id,group,area),owner};
+}
+
+export function toggleDecorSelection(p,level,kind,id,group,area='inside',replace=false){
+ const l=p.levels.find(l=>l.id===level),target=(kind==='floor'?l?.tiles:l?.walls)?.[id];
+ if(!group||!target)return {ok:false};
+ if(target[decorField(kind,area)]===group)return {ok:assignDecor(p,level,kind,id,null,area),removed:true};
+ return assignDecorSafely(p,level,kind,id,group,area,replace);
 }

@@ -1,11 +1,75 @@
-import {KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout} from './geometry.mjs';
+import {KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
 import {cutProfile} from './rooms.mjs';
 
 export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={back:false,fill:'#d3d7c9',opacity:1},cutSelection=new Set()}={}){
  const active=level.id,faces=[],polygon=(vertices,attrs)=>faces.push({vertices,attrs}),collapsedWall=()=>collapsed,wallPaint=()=>paint;
-function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w);
+function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w),material=paint.material||w.material;
   const attrs={'data-kind':w.kind,'data-level':active,'data-collapsed':collapsed,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-face':back?'back':'front',opacity,'pointer-events':'none'};
-  const panel=(u,v,low,high,color=fill,overrides={})=>{const p=[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u],q=[a[0]+(b[0]-a[0])*v,a[1]+(b[1]-a[1])*v];polygon([[...p,low],[...q,low],[...q,high],[...p,high]],{fill:color,stroke:back?'none':color,'stroke-width':.8,...attrs,...overrides});};
+  const at=(u,y,d=0)=>{const side=w.axis==='x'?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];return [a[0]+(b[0]-a[0])*u+(w.axis==='x'?side*d:0),a[1]+(b[1]-a[1])*u+(w.axis==='z'?side*d:0),y];};
+  const flat=(u,v,low,high,color,overrides={})=>polygon([at(u,low),at(v,low),at(v,high),at(u,high)],{fill:color,stroke:back?'none':color,'stroke-width':.35,...attrs,...overrides});
+  const panel=(u,v,low,high,color=fill,overrides={})=>{
+    flat(u,v,low,high,color,overrides);
+    if(back||color!==fill||Object.keys(overrides).length||!['brick','stone','wood','panel'].includes(material))return;
+    const patch=(x0,x1,y0,y1,tone,part)=>{x0=Math.max(u,x0);x1=Math.min(v,x1);y0=Math.max(low,y0);y1=Math.min(high,y1);if(x1>x0&&y1>y0)flat(x0,x1,y0,y1,tintColor(fill,tone),{'data-part':part,stroke:'none'});};
+    const motif=(points,tone,part)=>{
+      let poly=points;
+      for(const [axis,limit,sign] of [[0,u,1],[0,v,-1],[1,low,1],[1,high,-1]]){
+        const clipped=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],da=(a[axis]-limit)*sign,db=(b[axis]-limit)*sign;if(da>=0)clipped.push(a);if((da>=0)!==(db>=0)){const t=da/(da-db);clipped.push(a.map((n,k)=>n+(b[k]-n)*t));}}poly=clipped;
+      }
+      if(poly.length>=3)polygon(poly.map(([x,y])=>at(x,y)),{...attrs,fill:tintColor(fill,tone),'data-part':part});
+    };
+    if(['brick','stone'].includes(material)){
+      const step=material==='brick'?18:38,span=material==='brick'?.5:1;
+      for(let row=Math.floor(low/step);row*step<high;row++){
+        const shift=(row%2)*span/2;
+        for(let c=-1;c<3;c++){const x=c*span+shift,y=row*step;
+          const variation=1+Math.sin(row*2.73+c*4.17)*.075;
+          patch(x+.012,x+span-.012,y+1,y+step-1,variation,'masonry-face');
+          patch(x,x+span,y,y+2.2,.63,'mortar');patch(x,x+.02,y,y+step,.67,'mortar');
+          motif([[x+.02,y+step-1],[x+span-.025,y+step-1],[x+span-.065,y+step-4],[x+.075,y+step-3]],variation*1.16,'masonry-bevel');
+          motif([[x+.02,y+2],[x+span-.02,y+2],[x+span-.035,y+5],[x+.07,y+4]],variation*.81,'masonry-undercut');
+          for(let fleck=0;fleck<5;fleck++){
+            const fx=x+.06+(span-.12)*((Math.sin(row*7+c*3+fleck*4)+1)/2),fy=y+6+(step-12)*((Math.cos(row*3+fleck*7)+1)/2);
+            motif([[fx-.017,fy],[fx+.023,fy-1],[fx+.032,fy+1.6],[fx-.011,fy+2.2]],variation*(fleck%2?.94:1.055),'masonry-grain');
+          }
+          if(material==='stone'){
+            motif([[x+.035,y+7],[x+span*.40,y+step*.55],[x+span*.72,y+step*.46],[x+span-.03,y+step*.74],[x+span*.70,y+step*.51],[x+span*.38,y+step*.59]],variation*.9,'stone-vein');
+            motif([[x+span-.02,y+step-1],[x+span-.085,y+step-1],[x+span-.052,y+step-7],[x+span-.02,y+step-9]],variation*.75,'stone-chip');
+          }
+
+        }
+      }
+    }else if(material==='wood'){
+      for(let i=0;i<4;i++){
+        const x=i/4;patch(x,x+.25,0,h,1+(i%3-1)*.065,'timber-board');patch(x,x+.011,0,h,.51,'board-joint');patch(x+.012,x+.027,0,h,1.19,'board-bevel');
+        for(let k=0;k<5;k++){
+          const points=[],center=x+.052+k*.037;
+          for(let y=0;y<=h+8;y+=8)points.push([center+Math.sin(y*.04+i+k)*.008,y]);
+          for(let y=Math.ceil(h/8)*8;y>=0;y-=8)points.push([center+Math.sin(y*.04+i+k)*.008+.006,y]);
+          motif(points,.77+k*.033,'timber-grain');
+        }
+        const ky=70+i*39,kx=x+.12;
+        for(const radius of [1,.6]){
+          const points=[];for(let j=0;j<=16;j++){const a=j*Math.PI/8;points.push([kx+Math.cos(a)*.045*radius,ky+Math.sin(a)*12*radius]);}
+          for(let j=16;j>=0;j--){const a=j*Math.PI/8;points.push([kx+Math.cos(a)*(.045*radius-.006),ky+Math.sin(a)*(12*radius-1.5)]);}
+          motif(points,.64,'timber-knot');
+        }
+      }
+
+    }else{
+      for(const [x0,x1,y0,y1] of [[.065,.935,22,99],[.065,.935,118,h-25]]){
+        patch(x0,x1,y0,y1,.92,'panel-recess');patch(x0,x0+.026,y0,y1,.78,'panel-moulding');patch(x0,x1,y1-5,y1,1.1,'panel-moulding');patch(x1-.026,x1,y0,y1,1.13,'panel-moulding');patch(x0,x1,y0,y0+4,.81,'panel-moulding');
+      }
+      patch(0,1,0,9,.87,'skirting');patch(0,1,9,12,1.12,'skirting');
+    }
+  };
+  // Shallow extrusions give casings a real side face and a lit top edge.
+  const moulding=(u,v,low,high,color,depth=.035,part='casing')=>{
+    if(back)return;
+    polygon([at(u,low,depth),at(v,low,depth),at(v,high,depth),at(u,high,depth)],{...attrs,fill:color,'data-part':part});
+    polygon([at(u,high),at(v,high),at(v,high,depth),at(u,high,depth)],{...attrs,fill:tintColor(color,1.12),'data-part':part+'-top'});
+    for(const x of [u,v])polygon([at(x,low),at(x,low,depth),at(x,high,depth),at(x,high)],{...attrs,fill:tintColor(color,.72),'data-part':part+'-edge'});
+  };
   if(w.kind==='fence')return;
   if(collapsed){
     const profile=cutProfile(w,level.walls,cutSelection),t=KIT.wallThickness/2;
@@ -36,6 +100,24 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),coll
         for(let i=0;i<16;i++){const u=L+(R-L)*i/16,v=L+(R-L)*(i+1)/16;polygon([at(u,arch(u)),at(v,arch(v)),at(v,h),at(u,h)],{fill,...attrs});polygon([at(u,arch(u)),at(v,arch(v)),at(v,arch(v)+5),at(u,arch(u)+5)],{fill:back?fill:'#e8e2d2',...attrs});}
       }else{panel(L,R,top,h);panel(L-.025,R+.025,top-4,top+5,back?fill:'#e8e2d2');}
       panel(L-.035,L,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#b3b7a9');panel(R,R+.035,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#e8e2d2');
+      const trim=back?fill:'#e5decb',reveal=back?fill:'#8e9285';
+      const jambTop=w.doorStyle==='arch'?h*.66:top;
+      for(const [u,v] of [[L-.042,L-.007],[R+.007,R+.042]]){
+        moulding(u,v,0,jambTop,trim,.035,'door-casing');
+        moulding(u-.009,v+.009,0,15,tintColor(trim,.92),.045,'door-plinth');
+      }
+      if(w.doorStyle!=='arch')moulding(L-.05,R+.05,top+1,top+8,trim,.04,'door-header');
+
+      if(w.doorStyle==='craftsman'){
+        panel(L-.065,L-.015,0,top+9,trim);panel(R+.015,R+.065,0,top+9,trim);
+        panel(L-.09,R+.09,top+6,top+15,trim);panel(L-.105,R+.105,top+15,top+19,back?fill:'#f0e8d6');
+        for(const u of [L-.065,R+.015]){panel(u,u+.05,0,18,reveal);panel(u+.009,u+.041,23,top-7,back?fill:'#c9c3b3');}
+      }else if(w.doorStyle==='stone'){
+        for(let i=0;i<7;i++)for(const [u,v] of [[L-.08,L],[R,R+.08]])panel(u,v,i*top/7+1,(i+1)*top/7-1,back?fill:i%2?'#bbb8a8':'#d4d0bd');
+        panel(L-.09,R+.09,top,top+16,trim);
+        for(let i=0;i<5;i++)panel(L+(R-L)*i/5+.004,L+(R-L)*(i+1)/5-.004,top+1,top+15,back?fill:i%2?'#bcb8a8':'#d4d0bd');
+      }
+
     }
   }
   else if(w.kind==='window'&&!collapsed){
@@ -49,7 +131,24 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),coll
     panel(L+.17,L+.19,B+12,T-12,'#ffffff',{opacity:opacity*(back?.17:.15),stroke:'none','data-part':'window-reflection'});
     panel(L-.025,L+.035,B-5,T+5,frame);panel(R-.035,R+.025,B-5,T+5,frame);
     panel(L-.025,R+.025,T-5,T+5,frame);panel(L-.035,R+.035,B-6,B+4,frame);
-    if(divided){panel(.485,.515,B+4,T-4,frame);panel(L,R,(B+T)/2-2,(B+T)/2+2,frame);}
+    if(divided){if(w.windowStyle!=='colonial')panel(.485,.515,B+4,T-4,frame);panel(L,R,(B+T)/2-2,(B+T)/2+2,frame);}
+    // Recessed inner beads and a separate outer casing give the frame depth.
+    panel(L+.032,L+.045,B+5,T-5,back?fill:'#9aab9f');panel(R-.045,R-.032,B+5,T-5,back?fill:'#f5eedf');
+    panel(L-.035,R+.035,T+5,T+9,back?fill:'#f4eddd');panel(L-.04,R+.04,B-10,B-6,back?fill:'#a4a898');
+    if(w.windowStyle==='colonial')for(const u of [L+(R-L)/3,L+2*(R-L)/3])panel(u-.009,u+.009,B+4,T-4,frame);
+    if(w.windowStyle==='casement'){
+      panel(.487,.513,B+4,T-4,frame);
+      for(const u of [L+.02,R-.035])for(const y of [B+12,T-16])panel(u,u+.015,y,y+6,back?fill:'#626d63');
+      panel(.46,.478,(B+T)/2-6,(B+T)/2+6,back?fill:'#767960');
+    }
+
+    for(const [u,v] of [[L-.027,L+.003],[R-.003,R+.027]])moulding(u,v,B-4,T+5,frame,.035,'window-casing');
+    moulding(L-.035,R+.035,T+4,T+10,frame,.045,'window-header');
+    moulding(L-.045,R+.045,B-9,B-3,tintColor(frame,.93),.08,'sill-apron');
+    if(w.windowStyle==='colonial'){
+      moulding(L+.018,R-.018,(B+T)/2-3,(B+T)/2+3,frame,.025,'sash-rail');
+      for(const u of [.44,.55])moulding(u,u+.025,(B+T)/2+4,(B+T)/2+7,'#8d825c',.035,'sash-lock');
+    }
     // A shallow sill projects from the front face of the wall.
     const normal=w.axis==='x'?[1,0]:[0,1],sign=wallFacing(w,level.tiles);
     const sill=(u,d)=>[a[0]+(b[0]-a[0])*u+normal[0]*d*sign,a[1]+(b[1]-a[1])*u+normal[1]*d*sign,B+5];

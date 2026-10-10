@@ -83,7 +83,15 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
   const style=w.fenceStyle||'rail';
   const palette=style==='metal'?{top:'#62706e',side:'#303d3d',end:'#44514f'}:style==='picket'?{top:'#e4dfcc',side:'#a9ac9d',end:'#c9cbb9'}:{top:'#a99983',side:'#625648',end:'#887762'};
   const {faces,box}=meshBuilder(point,rotation,palette);
-  if(style==='slat')for(const y of [22,40,58,76,94]){box(0,1,-.038,.038,y-13,y,y-13,y,'slat');box(0,1,.038,.04,y-3,y-2,y-3,y-2,'grain',{...palette,end:tintColor(palette.end,.88)});}
+  if(style==='lattice'){
+    box(0,1,-.06,.06,7,15,7,15,'lower-frame');box(0,1,-.07,.07,89,98,89,98,'top-frame');
+    for(const slope of [-1,1])for(let band=-5;band<=5;band++){
+      let poly=[[0,15],[1,15],[1,89],[0,89]];
+      for(const [limit,sign] of [[band*22,1],[band*22+5,-1]]){const out=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],da=sign*(a[1]-slope*84*a[0]-limit),db=sign*(b[1]-slope*84*b[0]-limit);if(da>=0)out.push(a);if((da>=0)!==(db>=0)){const t=da/(da-db);out.push([a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])]);}}poly=out;}
+      if(poly.length>2)for(const side of [-1,1])faces.push({part:'lattice',color:side<0?palette.side:palette.end,vertices:poly.map(([u,h])=>point(u,side*.035,h))});
+    }
+  }
+  else if(style==='slat')for(const y of [22,40,58,76,94]){box(0,1,-.038,.038,y-13,y,y-13,y,'slat');box(0,1,.038,.04,y-3,y-2,y-3,y-2,'grain',{...palette,end:tintColor(palette.end,.88)});}
   else {
     for(const y of [25,70]){const t=style==='metal'?.023:.04,d=style==='metal'?4:8;box(0,1,-t,t,y-d,y,y-d,y,'rail');}
     if(style==='rail'){const brace=(u,v,h)=>point(u,v,h);for(const v of [-.035,.035])faces.push({part:'brace',color:palette.side,vertices:[brace(.06,v,23),brace(.94,v,61),brace(.94,v,68),brace(.06,v,30)]});faces.push({part:'brace',color:palette.top,vertices:[brace(.06,-.035,30),brace(.94,-.035,68),brace(.94,.035,68),brace(.06,.035,30)]});}
@@ -121,7 +129,7 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
           }
           for(const h of [22,66])detail(base+.015,v,h,.007,1.1,'#66685a','fastener');
         }
-      }else for(const h of style==='slat'?[18,36,54,72,90]:[22,67]){
+      }else for(const h of style==='slat'?[18,36,54,72,90]:style==='lattice'?[11,94]:[22,67]){
         const vertices=[];for(let j=0;j<=8;j++)vertices.push(point(j/8,v,h+Math.sin(j*1.5)*.65));
         for(let j=8;j>=0;j--)vertices.push(point(j/8,v,h+Math.sin(j*1.5)*.65+.45));
         faces.push({part:'wood-grain',color:tintColor(palette.end,.88),vertices});
@@ -130,27 +138,56 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
     }
     for(const [i,show] of posts.entries())if(show){box(i-.064,i+.064,-.064,.064,0,4,0,4,'post-foot',{top:'#797562',side:'#484b3e',end:'#656951'});for(const v of [-.061,.061])for(const h of [21,66])detail(i,v,h,.014,1.7,'#57584b','post-fastener');}
   }
+  if(style!=='metal'){
+    // Chamfered post shoulders and collars remain shared at connected edges.
+    for(const [i,show] of posts.entries())if(show){
+      box(i-.068,i+.068,-.068,.068,84,88,84,88,'post-neck',tintedPalette(tintColor(palette.end,1.13)));
+      for(const v of [-.061,.061])faces.push({part:'post-bevel',color:tintColor(palette.top,1.04),vertices:[point(i-.056,v,6),point(i-.043,v,6),point(i-.043,v,83),point(i-.056,v,83)]});
+    }
+    const knots=style==='privacy'?[[.40,43], [.73,61]]:style==='picket'?[[.38,40]]:style==='slat'?[[.33,49],[.76,83]]:style==='rail'?[[.37,21],[.72,66]]:[];
+    for(const [u,h] of knots)for(const v of style==='privacy'?[-.084,-.016]:style==='picket'?[-.077,-.016]:[-.041,.041])for(let ring=1;ring<=2;ring++)for(let n=0;n<10;n++){
+      const a=n*Math.PI/5,b=(n+1)*Math.PI/5,rx=.013*ring,ry=1.5*ring;
+      faces.push({part:'wood-knot',color:tintColor(palette.end,.77+ring*.035),vertices:[point(u+Math.cos(a)*rx,v,h+Math.sin(a)*ry),point(u+Math.cos(b)*rx,v,h+Math.sin(b)*ry),point(u+Math.cos(b)*(rx+.004),v,h+Math.sin(b)*(ry+.4)),point(u+Math.cos(a)*(rx+.004),v,h+Math.sin(a)*(ry+.4))]});
+    }
+  }
   return faces;
 }
 export function stairFaces(end,rotation=0){
   const width=end.width===1?1:2,sign=end.rise===1?1:-1,depth=end.depth||2;
   const point=(u,v,h)=>end.axis==='x'?[end.x-.5+u,end.z+sign*(.5+v),h]:[end.x+sign*(.5+v),end.z-.5+u,h];
-  const timber=['timber','open'].includes(end.style),open=end.style==='open';
+  const metal=end.style==='iron',timber=['timber','open','classic','iron'].includes(end.style),open=['open','iron'].includes(end.style);
   const palette=end.appearance?.bodyColor?tintedPalette(end.appearance.bodyColor):timber?{top:'#b29976',side:'#6c5640',end:'#8d7354'}:{top:'#d3d0c2',side:'#90958b',end:'#aeb2a6'};
-  const railPalette=end.appearance?.railColor?tintedPalette(end.appearance.railColor):{top:'#8d7b61',side:'#4f493d',end:'#70624f'};
+  const railPalette=end.appearance?.railColor?tintedPalette(end.appearance.railColor):metal?{top:'#71817c',side:'#303f3c',end:'#4b5d56'}:{top:'#8d7b61',side:'#4f493d',end:'#70624f'};
   const {faces,box}=meshBuilder(point,rotation,palette),count=12,totalHeight=KIT.wallHeight,rise=totalHeight/count,run=depth/count;
   for(let i=0;i<count;i++){
     const h=(i+1)*rise,a=i*run,b=(i+1)*run;
     // Solid risers or visibly separated thick treads on sloped stringers.
     box(.05,width-.05,a,b,open?h-7:timber?Math.max(0,i*rise-6):0,h-4,open?h-7:timber?Math.max(0,i*rise-6):0,h-4,'step');
     box(.035,width-.035,Math.max(0,a-.025),b,h-4,h,h-4,h,'tread');
+    if(!open)box(.085,width-.085,a-.006,a+.006,h-rise+5,h-8,h-rise+5,h-8,'recessed-riser',{top:palette.top,side:palette.side,end:tintColor(palette.end,.91)});
+    box(.04,width-.04,Math.max(0,a-.03),Math.max(.006,a-.018),h-3,h-1,h-3,h-1,'rounded-nosing',{top:tintColor(palette.top,1.08),side:palette.side,end:palette.end});
+    if(timber){
+      for(let grain=0;grain<3;grain++){
+        const v=a+run*(.28+grain*.23),vertices=[];
+        for(let k=0;k<=8;k++){const u=.08+(width-.16)*k/8;vertices.push(point(u,v+Math.sin(k*1.5+i)*.005,h+.25));}
+        for(let k=8;k>=0;k--){const u=.08+(width-.16)*k/8;vertices.push(point(u,v+Math.sin(k*1.5+i)*.005+.004,h+.25));}
+        faces.push({part:'tread-grain',color:tintColor(palette.top,.84+grain*.035),vertices});
+      }
+    }
     if(timber)box(.06,width-.06,a+.035,a+.045,h,h+.2,h,h+.2,'board-joint',railPalette);
   }
   if(timber&&!open)box(.09,width-.09,0,depth,0,10,totalHeight-rise-10,totalHeight-rise,'underside');
   if(timber){
     for(const u of [.09,width-.09]){
       box(u-.04,u+.04,0,depth,0,18,totalHeight-27,totalHeight-12,'stringer',railPalette);
-      for(let i=0;i<=count;i+=2){const v=Math.min(depth-.05,i*run+.04),h=Math.min(totalHeight,(i+1)*rise);box(u-.025,u+.025,v-.025,v+.025,h,h+43,h,h+43,'baluster',railPalette);}
+      for(let i=0;i<=count;i+=end.style==='classic'?1:2){const v=Math.min(depth-.05,i*run+.04),h=Math.min(totalHeight,(i+1)*rise);if(end.style==='classic'){
+        const profile=[[0,.025],[8,.025],[13,.036],[18,.02],[25,.016],[31,.03],[36,.02],[43,.025]];
+        for(let p=1;p<profile.length;p++)for(let side=0;side<8;side++){
+          const [lo,r0]=profile[p-1],[hi,r1]=profile[p],a=side*Math.PI/4,b=(side+1)*Math.PI/4;
+          faces.push({part:'turned-baluster',color:tintColor(railPalette.end,.8+side*.055),vertices:[[a,r0,lo],[b,r0,lo],[b,r1,hi],[a,r1,hi]].map(([angle,rise,y])=>point(u+Math.cos(angle)*rise,v+Math.sin(angle)*rise,h+y))});
+        }
+      }else box(u-.025,u+.025,v-.025,v+.025,h,h+43,h,h+43,'baluster',railPalette);if(end.style==='classic'){box(u-.038,u+.038,v-.038,v+.038,h+10,h+15,h+10,h+15,'baluster-collar',railPalette);box(u-.033,u+.033,v-.033,v+.033,h+30,h+34,h+30,h+34,'baluster-collar',railPalette);}}
+      box(u-.068,u+.068,-.045,.07,0,rise+47,0,rise+47,'newel-post',railPalette);box(u-.085,u+.085,-.06,.085,rise+44,rise+49,rise+44,rise+49,'newel-cap',railPalette);
       box(u-.045,u+.045,0,depth,rise+39,rise+45,totalHeight+39,totalHeight+45,'handrail',railPalette);
     }
   }
@@ -164,8 +201,8 @@ export function stairFaces(end,rotation=0){
 
 // Original architectural proportions; no external sprite or reference artwork.
 export function windowLayout(style='divided') {
-  const low=style==='high'?.65:.43, high=style==='high'?.83:.75;
-  return {left:.09,right:.91,low,high,divided:style==='divided'};
+  const low=style==='high'?.65:style==='casement'?.31:.43, high=style==='high'?.83:style==='casement'?.84:.75;
+  return {left:.09,right:.91,low,high,divided:['divided','colonial'].includes(style)};
 }
 
 export function stairArrow(end){
