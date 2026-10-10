@@ -33,7 +33,7 @@ function status(s){$('status').textContent=s;}
 function persist(){if(reviewMode)return;try{if(!library)throw Error('Storage unavailable');library.save(project);}catch{status('Browser storage unavailable. Use Save project to keep this design.');}}
 function history(){undo.push(clone());if(undo.length>80)undo.shift();redo=[];}
 function changed(){ensureDecor(project);roomCache=new WeakMap();persist();render();}
-let renderParent=null,viewMetrics=null;
+let renderParent=null,viewMetrics=null,placementPointer=null,previewDrawing=false,previewFrame=null;
 function element(tag,attrs={},parent=renderParent||svg){const el=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);parent.append(el);return el;}
 function text(x,y,value,attrs={}){const el=element('text',{x,y,'text-anchor':'middle','font-family':'system-ui','font-size':11,'pointer-events':'none',...attrs});el.textContent=value;return el;}
 function scale(){return viewMetrics?.scale??(+$('zoom').value/100*Math.min(1,svg.clientWidth/780,svg.clientHeight/720));}
@@ -47,11 +47,11 @@ function tile(x,z,fill,stroke='#80968e',extra={}){return element('polygon',{poin
 function endpoints(w){return w.axis==='x'?[[w.x-.5,w.z-.5],[w.x-.5,w.z+.5]]:[[w.x-.5,w.z-.5],[w.x+.5,w.z-.5]];}
 function decorColor(id){const i=project.decorGroups.findIndex(g=>g.id===id);return i<0?'#596968':`hsl(${(i*83+35)%360} 38% 62%)`;}
 function facingWall(w){return {...w,facing:wallFacing(w,levelOf(project,active).tiles)};}
-function wallPaint(w){const back=wallSide(facingWall(w),rotation)==='back',mount=$('overlay').value==='mount'&&w.mount;let fill=kit.wallMaterials.find(m=>m.id===w.material)?.color||'#d3d7c9';if(mount)fill='#75b6d3';if($('overlay').value==='decor')fill=decorColor(w.decorGroup);if(back)fill='#142e2a';return {back,fill,opacity:roomWallOpacity(w,cutSelection,$('wall-view').value,+$('wall-opacity').value/100,back)};}
+function wallPaint(w){const back=wallSide(facingWall(w),rotation)==='back',mount=$('overlay').value==='mount'&&w.mount;let fill=kit.wallMaterials.find(m=>m.id===w.material)?.color||'#d3d7c9';if(mount)fill='#75b6d3';if($('overlay').value==='decor')fill=decorColor(w.decorGroup);if(back)fill='#142e2a';return {back,fill,opacity:previewDrawing?1:roomWallOpacity(w,cutSelection,$('wall-view').value,+$('wall-opacity').value/100,back)};}
 let faceQueue=null;
 function polygon(vertices,attrs){if(tool==='select'&&!playing&&attrs['data-kind']==='window'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-piece-kind':'window','data-piece-id':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(faceQueue){faceQueue.push({vertices,attrs});return;}element('polygon',{points:points(vertices),...attrs});}
 function drawCorner(corner){for(const face of wallCornerFaces(corner,rotation)){const {back,fill,opacity}=wallPaint(face.wall);const capBack=corner.walls.every(w=>wallSide(facingWall(w),rotation)==='back');polygon(face.vertices,{fill:face.part==='cap'?(capBack?'#263e35':'#e2e7d9'):fill,opacity:face.part==='cap'?Math.max(...corner.walls.map(w=>wallPaint(w).opacity)):opacity,'pointer-events':'none','data-kind':'wall-corner','data-corner-id':corner.id,'data-level':active,'data-part':face.part,'data-material':face.wall.material||'blank'});}}
-function collapsedWall(w){return ['auto','cut'].includes($('wall-view').value)&&cutSelection.has(edgeKey(w));}
+function collapsedWall(w){return !previewDrawing&&['auto','cut'].includes($('wall-view').value)&&cutSelection.has(edgeKey(w));}
 function drawWall(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w);
   const attrs={'data-kind':w.kind,'data-level':active,'data-collapsed':collapsed,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-face':back?'back':'front',opacity,'pointer-events':'none'};
   const panel=(u,v,low,high,color=fill,overrides={})=>{const p=[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u],q=[a[0]+(b[0]-a[0])*v,a[1]+(b[1]-a[1])*v];polygon([[...p,low],[...q,low],[...q,high],[...p,high]],{fill:color,stroke:back?'none':color,'stroke-width':.8,...attrs,...overrides});};
@@ -176,14 +176,14 @@ function render(){
   }
   if(tool==='select'&&!playing&&$('piece-kind').value==='stair'){const t=decorPieces(project,active,'stair').find(t=>t.id===$('piece-target').value);if(t)for(const c of triggerCells(t.value))tile(c.x,c.z,'none','#ffe0a0',{'stroke-width':3,'pointer-events':'none','data-kind':'selected-stair-base'});}
   $('name').value=project.name;
-  $('levels').replaceChildren();for(const level of project.levels){const b=document.createElement('button');b.className=level.id===active?'active':'';b.textContent=level.name;const small=document.createElement('small');small.textContent=`${Object.keys(level.tiles).length} tiles · ${Object.keys(level.walls).length} wall edges`;b.append(small);b.onclick=()=>{active=level.id;render();};b.ondblclick=()=>{if(playing)return;const name=prompt('Floor name',level.name);if(name?.trim()){history();level.name=name.trim().slice(0,80);changed();}};$('levels').append(b);}
+  $('levels').replaceChildren();for(const level of project.levels){const b=document.createElement('button');b.className=level.id===active?'active':'';b.textContent=level.name;const small=document.createElement('small');small.textContent=`${Object.keys(level.tiles).length} floor tiles`;b.append(small);b.onclick=()=>{active=level.id;render();};b.ondblclick=()=>{if(playing)return;const name=prompt('Floor name',level.name);if(name?.trim()){history();level.name=name.trim().slice(0,80);changed();}};$('levels').append(b);}
   $('stairs').replaceChildren();for(const s of project.stairs){const row=document.createElement('div');row.className='stair-row';row.textContent=`${levelOf(project,s.a.level).name} ↔ ${levelOf(project,s.b.level).name}`;const b=document.createElement('button');b.textContent='×';b.ariaLabel=`Remove ${s.id}`;b.disabled=playing;b.onclick=()=>{history();project.stairs=project.stairs.filter(t=>t.id!==s.id);changed();};row.append(b);$('stairs').append(row);}
   if(!project.stairs.length)$('stairs').textContent='No stairs connected yet.';
   $('cancel-stair').hidden=!pending;
   $('room-list').replaceChildren();for(const room of l.rooms||[]){const row=document.createElement('div');row.className='stair-row';row.textContent=room.name+' · '+room.kind;const remove=document.createElement('button');remove.textContent='×';remove.ariaLabel='Remove room area '+room.name;remove.disabled=playing;remove.onclick=()=>{history();l.rooms=l.rooms.filter(r=>r.id!==room.id);changed();};row.append(remove);$('room-list').append(row);}
   $('active-room').textContent=playing?'Walking area: '+(cutaway.room?.name||'Outside'):'Closed rooms are detected automatically. Mark open-plan rooms with Room area.';
   $('checks').replaceChildren();const issues=validate(project);for(const issue of issues.length?issues:['Entry and reachable floor checks pass.']){const el=document.createElement('div');el.className=`check ${issues.length?'':'good'}`;el.textContent=(issues.length?'• ':'✓ ')+issue;$('checks').append(el);}
-  refreshPieces();
+  refreshToolSettings();refreshSimpleView();refreshPieces();
   $('counts').textContent=`${project.levels.length} floors · ${Object.keys(l.tiles).length} tiles · ${joins.length} auto corners · ${project.stairs.length} stair links`;
   $('view-label').textContent=l.name.toUpperCase()+' · '+['NORTH','EAST','SOUTH','WEST'][rotation]+' VIEW';
   $('hint').textContent=panMode?'Drag to pan · click Pan again to return to '+(playing?'walking':'building'):playing?'Click floor to walk. End on a stair base to change floors; crossing it is safe.':pending?'Stair base selected. Choose another floor, then click its single or double landing.':({select:'Click a placed stair or window to edit it. Rotate stairs with the left/right buttons; the other floor stays unchanged.',room:roomStart?'Click the opposite floor corner to finish the room area':'Click two opposite floor corners to mark a room area',floor:'Drag to paint floor • Right-drag or Option-drag to pan',wall:'Drag along grid edges to build walls',door:'Click a grid edge to add an open doorway',window:'Click a grid edge to add a window wall',fence:'Drag along grid edges to build a fence',gate:'Click a fence edge to replace it with a matching gate · gates open automatically while walking',face:'Click a wall edge to reverse its finished face and back shadow',decor:'Click or drag over surfaces to assign the selected décor group',stairs:'Choose Single or Double width, place a base, then its destination on another floor',item:'Click a placeable tile to add a solid test item',spawn:'Click a walkable tile to set the entry point',erase:'Click to remove an item or stair; near an edge removes a wall; otherwise removes floor'})[tool];
@@ -191,9 +191,51 @@ function render(){
   [...$('views').children].forEach((b,i)=>b.classList.toggle('active',i===rotation));
   $('wall-opacity-value').textContent=$('wall-opacity').value+'% visible';
   $('pan').classList.toggle('active',panMode);$('pan').setAttribute('aria-pressed',String(panMode));svg.style.cursor=panStart?'grabbing':panMode?'grab':'';
-  refreshDecor();$('undo').disabled=!undo.length||playing;$('redo').disabled=!redo.length||playing;$('add-level').disabled=playing;$('play').textContent=playing?'■ End walk test':'▶ Walk test';viewMetrics=null;
+  refreshDecor();$('undo').disabled=!undo.length||playing;$('redo').disabled=!redo.length||playing;$('add-level').disabled=playing;$('play').textContent=playing?'■ End walk test':'▶ Walk test';drawPlacementPreview();viewMetrics=null;
 }
 function nearestEdge(p){const x=Math.round(p.wx),z=Math.round(p.wz),dx=p.wx-x,dz=p.wz-z;return Math.abs(dx)>Math.abs(dz)?{axis:'x',x:x+(dx>0?1:0),z}:{axis:'z',x,z:z+(dz>0?1:0)};}
+function stairBrush(n){return {...n,axis:$('axis').value,angle:$('axis').value==='x'?90:0,width:+$('stair-width').value,style:$('stair-style').value,depth:+$('stair-depth').value,rise:+$('stair-rise').value};}
+function stairPlacementProblem(end){
+ const l=levelOf(project,end.level);
+ if(triggerCells(end).some(c=>!walkable(project,c)||portalAt(project,c)||nodeKey(project.spawn||{})===nodeKey(c)))return 'The stair base needs free walkable floor, away from entry and other stairs.';
+ if(stairFlightCells(end).some(c=>portalAt(project,c)||stairSolidAt(project,c)||nodeKey(project.spawn||{})===nodeKey(c)||l.items.some(i=>i.x===c.x&&i.z===c.z)))return 'The stair flight overlaps entry, another stair, or an item.';
+ if(pending?.level===end.level)return 'Choose a different floor to finish this connection.';
+ return '';
+}
+function drawPlacementPreview(){
+ svg.querySelector('#placement-preview')?.remove();
+ if(!placementPointer||playing||panMode||panStart||!['floor','wall','door','window','fence','gate','stairs','item','spawn','room'].includes(tool))return;
+ const p=unproject(placementPointer),x=Math.round(p.wx),z=Math.round(p.wz),n={level:active,x,z},l=levelOf(project,active),edge=nearestEdge(p);
+ if(!Number.isSafeInteger(x)||!Number.isSafeInteger(z))return;
+ const end=tool==='stairs'?stairBrush(n):null;
+ const invalid=tool==='stairs'?!!stairPlacementProblem(end):tool==='item'?!canPlace(project,n):tool==='spawn'?(!walkable(project,n)||!!portalAt(project,n)):tool==='room'?!l.tiles[key(x,z)]:false;
+ const border=invalid?'#ff7777':'#b6ffe1';
+ const oldParent=renderParent;previewDrawing=true;
+ renderParent=element('g',{id:'placement-preview',opacity:.48,'pointer-events':'none','data-tool':tool,'data-valid':!invalid,'aria-hidden':'true'});
+ const footprint=c=>tile(c.x,c.z,invalid?'#be4141':'#83d9b3',border,{'fill-opacity':.2,'stroke-width':2,'pointer-events':'none'});
+ const mesh=faces=>{for(const f of orderFaces(faces,rotation))polygon(f.vertices,{fill:f.color,stroke:f.color,'stroke-width':.3,'pointer-events':'none','data-part':f.part});};
+ try{
+  if(tool==='floor'){
+   const cells=brushCells(x,z,+$('floor-size').value),size=+$('floor-size').value,c=cells[0],center=projection(c.x+(size-1)/2,c.z+(size-1)/2),s=scale();
+   element('image',{href:`assets/floor-${$('floor-material').value}-${size}x${size}.png`,x:center[0]-64*size*s,y:center[1]-32*size*s,width:128*size*s,height:64*size*s});cells.forEach(footprint);
+  }else if(['wall','door','window','fence','gate'].includes(tool)){
+   const existing=l.walls[edgeKey(edge)];
+   const w=tool==='gate'&&existing?.kind==='fence'?{...existing,gate:true}:{...edge,kind:tool==='gate'?'fence':tool,gate:tool==='gate',material:$('wall-material').value,doorStyle:$('door-style').value,windowStyle:$('window-style').value,fenceStyle:$('fence-style').value,...($('facing').value==='auto'?{}:{facing:+$('facing').value})};
+   if(w.kind==='fence')mesh(fenceFaces(w,rotation));else{const walls={...l.walls,[edgeKey(w)]:w},corners=wallCorners(walls).filter(c=>c.walls.includes(w));drawWall(w,corners);for(const corner of corners)drawCorner(corner);}
+   const [a,b]=wallEnds(w);polygon([[...a,1],[...b,1]],{fill:'none',stroke:border,'stroke-width':4});
+  }else if(tool==='stairs'){
+   let well=null;if(pending){const connection={a:pending,b:end};if(stairLevels(project,connection).upper===end)well=stairwell(project,connection,rotation);}
+   if(well){polygon(well.opening,{fill:'#3b665d',stroke:border,'stroke-width':2});mesh(well.faces);}else mesh(stairFaces(end,rotation));
+   [...stairFlightCells(end),...triggerCells(end)].forEach(footprint);polygon(stairArrow(end),{fill:border,stroke:'#264f43','stroke-width':1});
+  }else if(tool==='item'){mesh(itemFaces(n,rotation));footprint(n);}
+  else if(tool==='spawn'){footprint(n);const [px,py]=projection(x,z);text(px,py-5,'⚑',{fill:border,'font-size':28});}
+  else if(tool==='room'){
+   const start=roomStart?.level===active?roomStart:n,x0=Math.min(start.x,x)-.5,x1=Math.max(start.x,x)+.5,z0=Math.min(start.z,z)-.5,z1=Math.max(start.z,z)+.5;
+   polygon([[x0,z0],[x1,z0],[x1,z1],[x0,z1]],{fill:'#83d9b3','fill-opacity':.25,stroke:border,'stroke-width':2,'stroke-dasharray':'6 4'});
+  }
+ }finally{previewDrawing=false;renderParent=oldParent;}
+}
+function queuePlacementPreview(){if(previewFrame!==null)return;previewFrame=requestAnimationFrame(()=>{previewFrame=null;drawPlacementPreview();});}
 function edit(e){const p=unproject(e),x=Math.round(p.wx),z=Math.round(p.wz),n={level:active,x,z},l=levelOf(project,active),edge=nearestEdge(p);if(!Number.isSafeInteger(x)||!Number.isSafeInteger(z))return;const stamp=tool+(['wall','door','window','fence','gate','face'].includes(tool)?edgeKey(edge):key(x,z));if(painted.has(stamp))return;painted.add(stamp);
   const groupFor=kind=>project.decorGroups.some(g=>g.id===$('decor-group').value&&g.kind===kind&&g.level===active&&g.area===$('decor-area').value)?$('decor-group').value:null;
   if(tool==='room'){
@@ -209,9 +251,7 @@ function edit(e){const p=unproject(e),x=Math.round(p.wx),z=Math.round(p.wz),n={l
   if(tool==='item'){if(!canPlace(project,n)){status('This tile is not available for item placement.');return;}l.items.push({x,z});}
   if(tool==='spawn'){if(!walkable(project,n)||portalAt(project,n)){status('Entry needs walkable floor outside the stairs.');return;}project.spawn=n;}
   if(tool==='stairs'){
-    const end={...n,axis:$('axis').value,angle:$('axis').value==='x'?90:0,width:+$('stair-width').value,style:$('stair-style').value,depth:+$('stair-depth').value,rise:+$('stair-rise').value};
-    if(triggerCells(end).some(c=>!walkable(project,c)||portalAt(project,c)||nodeKey(project.spawn||{})===nodeKey(c))){status('The stair base needs free walkable floor, away from entry and other stairs.');return;}
-    if(stairFlightCells(end).some(c=>portalAt(project,c)||stairSolidAt(project,c)||nodeKey(project.spawn||{})===nodeKey(c)||l.items.some(i=>i.x===c.x&&i.z===c.z))){status('The stair flight overlaps entry, another stair, or an item.');return;}
+    const end=stairBrush(n),problem=stairPlacementProblem(end);if(problem){status(problem);return;}
     if(!pending){pending=end;status('Now select another floor and place the matching stair base.');}
     else if(pending.level===active){status('Choose a different floor to finish this connection.');return;}
     else{project.stairs.push({id:`stairs-${crypto.randomUUID()}`,a:pending,b:end});pending=null;status('Two-way stair connection created.');}
@@ -230,11 +270,13 @@ function walkTo(e){if(timer)return;const p=unproject(e),goal={level:active,x:Mat
   let i=0;timer=setInterval(()=>{if(i>=path.length){clearInterval(timer);timer=null;return;}const step=path[i++];avatar=step.node;active=avatar.level;if(step.via)status(`Stair transfer → ${levelOf(project,active).name}`);else status(`Walking · X ${avatar.x}, Z ${avatar.z}`);render();},110);
 }
 svg.addEventListener('contextmenu',e=>e.preventDefault());
-svg.addEventListener('pointerdown',e=>{if((e.button===0&&panMode)||e.button===1||e.button===2||e.altKey){e.preventDefault();drag=false;svg.style.cursor='grabbing';panStart={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};svg.setPointerCapture(e.pointerId);return;}if(e.button!==0)return;if(playing){walkTo(e);return;}if(tool==='select'){selectPieceAt(e);return;}history();drag=true;painted.clear();svg.setPointerCapture(e.pointerId);edit(e);});
-svg.addEventListener('pointermove',e=>{const p=unproject(e);$('coords').textContent=`X ${Math.round(p.wx)} · Z ${Math.round(p.wz)}`;if(panStart){pan={x:panStart.px+e.clientX-panStart.x,y:panStart.py+e.clientY-panStart.y};render();}else if(drag&&['floor','wall','fence','decor','erase'].includes(tool))edit(e);});
-for(const event of ['pointerup','pointercancel','lostpointercapture'])svg.addEventListener(event,()=>{drag=false;panStart=null;svg.style.cursor=panMode?'grab':'';});
+svg.addEventListener('pointerdown',e=>{placementPointer={clientX:e.clientX,clientY:e.clientY};if((e.button===0&&panMode)||e.button===1||e.button===2||e.altKey){e.preventDefault();drag=false;svg.style.cursor='grabbing';panStart={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};svg.setPointerCapture(e.pointerId);drawPlacementPreview();return;}if(e.button!==0)return;if(playing){walkTo(e);return;}if(tool==='select'){selectPieceAt(e);return;}history();drag=true;painted.clear();svg.setPointerCapture(e.pointerId);edit(e);});
+svg.addEventListener('pointermove',e=>{placementPointer={clientX:e.clientX,clientY:e.clientY};queuePlacementPreview();const p=unproject(e);$('coords').textContent=`X ${Math.round(p.wx)} · Z ${Math.round(p.wz)}`;if(panStart){pan={x:panStart.px+e.clientX-panStart.x,y:panStart.py+e.clientY-panStart.y};render();}else if(drag&&['floor','wall','fence','decor','erase'].includes(tool))edit(e);});
+svg.addEventListener('pointerleave',()=>{placementPointer=null;drawPlacementPreview();});
+svg.addEventListener('pointercancel',()=>{placementPointer=null;drawPlacementPreview();});
+for(const event of ['pointerup','pointercancel','lostpointercapture'])svg.addEventListener(event,()=>{drag=false;panStart=null;svg.style.cursor=panMode?'grab':'';queuePlacementPreview();});
 $('pan').onclick=()=>{panMode=!panMode;drag=false;panStart=null;render();};
-for(const [id,icon,label] of tools){const b=document.createElement('button');b.dataset.tool=id;const glyph=document.createElement('b');glyph.textContent=icon;b.append(glyph,label);b.onclick=()=>{tool=id;if(id!=='room')roomStart=null;if(id!=='stairs')pending=null;render();};$('tools').append(b);}
+for(const [id,icon,label] of tools){const b=document.createElement('button');b.dataset.tool=id;const glyph=document.createElement('b');glyph.textContent=icon;b.append(glyph,label);b.onclick=()=>{tool=id;if(id!=='room')roomStart=null;if(id!=='stairs')pending=null;render();$('tool-settings').scrollIntoView({block:'nearest',behavior:'smooth'});};$('tools').append(b);}
 ['N','E','S','W'].forEach((v,i)=>{const b=document.createElement('button');b.textContent=v;b.ariaLabel=`${['North','East','South','West'][i]} view`;b.onclick=()=>{rotation=i;render();};$('views').append(b);});
 function travelHistory(from,to){if(!from.length||playing)return;to.push(clone());project=ensureDecor(from.pop());refreshDecor();if(!levelOf(project,active))active=project.levels[0].id;pending=null;changed();}
 $('undo').onclick=()=>travelHistory(undo,redo);$('redo').onclick=()=>travelHistory(redo,undo);
@@ -243,6 +285,7 @@ let editingName=false;
 $('name').onfocus=()=>{editingName=false;};
 $('name').oninput=()=>{if(!editingName){history();editingName=true;}project.name=$('name').value.slice(0,120);persist();};
 $('name').onchange=()=>{project.name=$('name').value.trim().slice(0,120)||'Untitled LW space';changed();};
+for(const id of ['floor-size','floor-material','wall-material','door-style','window-style','facing','fence-style','stair-width','stair-style','stair-depth','stair-rise','axis'])$(id).addEventListener('input',queuePlacementPreview);
 for(const id of ['overlay','wall-view','wall-opacity','zoom','show-grid','background-view'])$(id).oninput=render;
 $('fit').onclick=()=>{pan={x:0,y:0};const l=levelOf(project,active),coords=Object.keys(l.tiles).map(k=>k.split(',').map(Number));if(coords.length){const raw=coords.map(([x,z])=>{const c=cameraGridPosition(x,z,rotation,{pivotX:4,pivotZ:3});return gridToScreen(c.rx-4,c.rz-3);}),x0=Math.min(...raw.map(p=>p.sx))-64,x1=Math.max(...raw.map(p=>p.sx))+64,y0=Math.min(...raw.map(p=>p.sy))-KIT.wallHeight-32,y1=Math.max(...raw.map(p=>p.sy))+32;const base=Math.min(1,svg.clientWidth/780,svg.clientHeight/720);$('zoom').value=Math.max(15,Math.min(160,100*Math.min((svg.clientWidth-60)/(x1-x0),(svg.clientHeight-80)/(y1-y0))/base));pan={x:-(x0+x1)*scale()/2,y:svg.clientHeight*(.5-.62)-(y0+y1)*scale()/2};}render();};
 $('cancel-stair').onclick=()=>{pending=null;render();};
@@ -274,6 +317,63 @@ $('decor-kind').onchange=refreshDecor;
 $('paint-decor').onclick=()=>{if(playing)return;tool='decor';$('overlay').value='decor';pending=null;render();};
 $('add-decor').onclick=()=>{if(playing)return;const name=prompt('Name this décor group');if(!name?.trim())return;history();const g={id:'lw_'+crypto.randomUUID().replaceAll('-',''),name:name.trim().slice(0,80),kind:$('decor-kind').value,editable:true,level:active,area:$('decor-area').value};project.decorGroups.push(g);refreshDecor();$('decor-group').value=g.id;changed();};
 $('export-decor').onclick=()=>saveData(decorManifest(project),project.name+'-decor-mapping','decor').catch(e=>status(e.message));
+const toolFields={
+ floor:['floor-size','floor-material','walk','place'],
+ wall:['wall-material','facing','collapse','mount'],
+ door:['door-style','wall-material','facing','collapse'],
+ window:['window-style','wall-material','facing','collapse'],
+ fence:['fence-style'],gate:['fence-style'],
+ stairs:['stair-width','stair-style','stair-depth','stair-rise','axis']
+};
+function setupRightPanel(){
+ const right=document.querySelector('aside.right'),tabs=document.createElement('div');tabs.className='sidebar-tabs';tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Space settings');
+ const panels={};
+ for(const [id,label,help] of [['floors','Floors','Choose which floor to build on. Add another floor when you need one.'],['view','View','Change how you see your space while building or walking.'],['decor','Décor','Optional: choose which surfaces players can redecorate after game import.'],['finish','Finish','Walk around to check your layout, then save your project.']]){
+  const button=document.createElement('button');button.type='button';button.textContent=label;button.id='sidebar-tab-'+id;button.setAttribute('role','tab');button.setAttribute('aria-controls','sidebar-panel-'+id);
+  const panel=document.createElement('section');panel.id='sidebar-panel-'+id;panel.className='sidebar-panel';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
+  const intro=document.createElement('p');intro.className='muted';intro.textContent=help;panel.append(intro);panels[id]=panel;right.append(panel);
+  button.onclick=()=>{for(const b of tabs.children){const selected=b===button;b.classList.toggle('active',selected);b.setAttribute('aria-selected',String(selected));}for(const [key,p] of Object.entries(panels))p.hidden=key!==id;};
+  tabs.append(button);
+ }
+ const move=(id,panel)=>panels[panel].append($(id).closest('.section'));
+ const floorHeading=$('levels').previousElementSibling;panels.floors.append(floorHeading,$('levels'),$('add-level'));
+ move('wall-view','view');move('decor-area','decor');move('stairs','floors');move('checks','finish');
+ const notes=right.querySelector('details');if(notes)panels.finish.append(notes);
+ const finishActions=document.createElement('div');finishActions.className='finish-actions';
+ for(const [label,target] of [['Walk around my space','play'],['Save my project','save']]){const b=document.createElement('button');b.textContent=label;b.onclick=()=>$(target).click();finishActions.append(b);}
+ const exportBuild=$('export-build'),buildNote=exportBuild.nextElementSibling;finishActions.append(exportBuild,buildNote);panels.finish.insertBefore(finishActions,panels.finish.children[1]);
+ const advanced=document.createElement('details');advanced.className='section';const summary=document.createElement('summary');summary.textContent='Advanced checks';advanced.append(summary,$('overlay').closest('label'));panels.finish.append(advanced);
+ const mapping=document.createElement('details');const mappingTitle=document.createElement('summary');mappingTitle.textContent='Advanced: export décor mapping';mapping.append(mappingTitle,$('export-decor'));panels.decor.append(mapping);
+ right.replaceChildren(tabs,...Object.values(panels));tabs.firstElementChild.click();
+ $('overlay').closest('label').firstChild.textContent='Highlight on the floor ';
+ const names={none:'Normal appearance',walk:'Where players can walk',place:'Where items can go',mount:'Where wall items can go',decor:'Redecoratable surface groups'};for(const option of $('overlay').options)option.textContent=names[option.value];
+ $('wall-view').closest('label').firstChild.textContent='Walls while walking ';
+ for(const [value,label] of Object.entries({auto:'Lower walls around me','auto-fade':'Make walls around me transparent',full:'Keep walls at full height',cut:'Show cutaway walls'}))$('wall-view').querySelector(`option[value="${value}"]`).textContent=label;
+ $('decor-kind').closest('label').firstChild.textContent='2. What can change? ';
+ $('decor-area').closest('label').firstChild.textContent='1. Choose an area ';
+ $('decor-area').closest('.section').querySelector('.eyebrow').textContent='PLAYER DECORATING';
+ const decorHelp=$('paint-decor').nextElementSibling;if(decorHelp?.tagName==='P')decorHelp.textContent='Choose or add a group, enable editing, then click Choose surfaces and paint the floors or walls that should change together. Your choices save with the project. Game import is still being connected.';
+ $('decor-group').closest('label').firstChild.textContent='3. Choose a style group ';
+ $('paint-decor').textContent='Choose surfaces for this group';$('add-decor').textContent='+ Add a style group';$('export-build').textContent='Export space build';
+ const viewSection=$('wall-view').closest('.section');viewSection.querySelector('.eyebrow').textContent='DISPLAY OPTIONS';
+ const explanations=[...viewSection.querySelectorAll('p')];if(explanations[0])explanations[0].textContent='Lower values make the walls easier to see through.';if(explanations[1])explanations[1].textContent='Use Walk test above the canvas to try these wall settings.';
+ const stairHelp=$('stairs').closest('.section').querySelector('p');if(stairHelp)stairHelp.textContent='These stairs link your floors. In Walk test, click the arrow at the stair base to travel to the other floor.';
+ $('wall-opacity').closest('label').dataset.fadeSetting='true';if(explanations[0])explanations[0].dataset.fadeSetting='true';
+}
+function refreshSimpleView(){for(const el of document.querySelectorAll('[data-fade-setting]'))el.hidden=$('wall-view').value!=='auto-fade';}
+function setupToolSettings(){
+ const panel=$('tool-settings');
+ for(const [control,id] of [['room-name','room-tool-settings'],['piece-kind','piece-tool-settings']]){const section=$(control).closest('.section');section.id=id;panel.append(section);}
+ $('building-help').hidden=true;
+}
+function refreshToolSettings(){
+ const fields=toolFields[tool]||[];
+ for(const id of new Set(Object.values(toolFields).flat()))$(id).closest('label').hidden=!fields.includes(id);
+ $('room-tool-settings').hidden=tool!=='room';$('piece-tool-settings').hidden=tool!=='select';
+ const name=tools.find(t=>t[0]===tool)?.[2]||'Décor';$('tool-settings-title').textContent=name+' options';
+ const help={floor:'Choose a size and finish, then move over the grid to preview. Click or drag to place.',wall:'Choose a finish and facing. A transparent wall snaps to the nearest floor edge.',door:'Choose the doorway shape, then preview it on a floor edge.',window:'Choose the window style, then preview it on a floor edge.',fence:'Choose a fence style, then move over an edge to preview. Click or drag to build.',gate:'Preview a gate on a floor edge. Placing over a fence keeps its existing style.',stairs:'Choose width, style and direction. Preview the flight, click its base, then switch floors and place the linked landing. Red marks a blocked position.',room:'Name the area and choose its type. Click two corners to outline it.',select:'Click a placed stair or window to edit it below. Stair rotation affects only the current floor.',face:'Click a wall edge to swap its finished face and back shadow.',item:'Preview a test item on a placeable tile. Red marks a blocked position.',spawn:'Preview the entry flag on a free walkable tile. The flag is only an editor marker.',erase:'Click an item or stair base to remove it. Near an edge, removes the wall; otherwise removes floor.',decor:'Choose a floor or wall group under Décor editor links, then paint its surfaces.'};
+ $('tool-settings-help').textContent=help[tool]||'';
+}
 let pieceSelection='';
 function refreshPieces(){
  const kind=$('piece-kind').value,list=decorPieces(project,active,kind),old=$('piece-target').value;
@@ -301,7 +401,7 @@ function selectPieceAt(e){
  }
  if(!id){status('Click a staircase or window, or choose a piece in the right-hand editor.');return;}
  $('piece-kind').value=kind;refreshPieces();$('piece-target').value=id;pieceSelection='';refreshPieces();
- $('piece-target').scrollIntoView({block:'nearest',behavior:'smooth'});status('Selected '+kind+'. Use the controls on the right to edit it.');render();
+ $('piece-target').scrollIntoView({block:'nearest',behavior:'smooth'});status('Selected '+kind+'. Use the controls below Select / edit to change it.');render();
 }
 function rotatePiece(turn){
  if(playing||$('piece-kind').value!=='stair')return;
@@ -314,7 +414,7 @@ $('rotate-piece-left').onclick=()=>rotatePiece(-1);$('rotate-piece-right').oncli
 $('piece-kind').onchange=()=>{pieceSelection='';refreshPieces();};$('piece-target').onchange=()=>{pieceSelection='';refreshPieces();};
 $('apply-piece').onclick=()=>{if(playing)return;const kind=$('piece-kind').value,id=$('piece-target').value;if(!id)return;history();const appearance=kind==='window'?{frameColor:$('piece-color').value,glassColor:$('piece-accent').value}:{bodyColor:$('piece-color').value,railColor:$('piece-accent').value};applyPieceDecor(project,active,kind,id,$('piece-style').value,appearance);changed();status('Style and colors updated on the selected '+kind+'.');};
 $('reset-piece').onclick=()=>{if(playing)return;const t=decorPieces(project,active,$('piece-kind').value).find(t=>t.id===$('piece-target').value);if(!t)return;history();delete t.value.appearance;changed();status('Default colors restored.');};
-refreshDecor();
+setupToolSettings();setupRightPanel();refreshDecor();
 new ResizeObserver(render).observe(svg);render();status(savedMessage);
 
 function saveForUpdate(){if(reviewMode)return;if(pending)throw Error('Finish or cancel your stair connection first.');project.name=$('name').value.trim().slice(0,120)||'Untitled LW space';const data=JSON.stringify(project);sessionStorage.setItem('lw-update-recovery',data);if(!library)throw Error('Save your project file before updating.');library.save(project);}

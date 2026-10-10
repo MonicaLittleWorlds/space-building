@@ -33,3 +33,7 @@ body[data-locked]>header,body[data-locked]>main,body[data-locked]>#web-app{displ
 @media(prefers-reduced-motion:reduce){.entry-cloud{animation:none;transform:translateX(8vw)}.entry-sky-glow{animation:none}.entry-cloud-light{animation:none}}
 
 .entry-card #owner-entry{display:inline;width:auto;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;letter-spacing:inherit;vertical-align:baseline;cursor:pointer}.entry-card #owner-entry:focus-visible{outline:2px solid #bde4d0;outline-offset:6px;border-radius:3px}.entry-card[hidden],#owner-panel [hidden]{display:none!important}#owner-panel{position:relative;z-index:1}#owner-panel label{display:block;margin:12px 0 7px}#owner-message{min-height:24px;color:#efd1a8}
+
+#tool-settings [hidden]{display:none!important}#tool-settings-title{text-transform:uppercase}#tool-settings>.section{margin-top:12px;padding-top:12px}#tool-settings-help{color:#bfd5cc}
+
+.sidebar-panel[hidden],.right [hidden]{display:none!important}.sidebar-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;position:sticky;top:-24px;background:#152023;padding:8px 0;z-index:2}.sidebar-panel>.section:first-of-type{margin-top:14px}.finish-actions{display:grid;gap:8px}.sidebar-panel summary{cursor:pointer;margin:12px 0;color:#b5d8c8}.sidebar-panel #add-level{width:100%;margin-top:10px}
