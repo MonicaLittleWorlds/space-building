@@ -28,7 +28,7 @@ export async function requireUniversalCode({checkUpdates}={}){
  document.body.setAttribute('data-locked','');
  const gate=document.createElement('section');gate.id='entry-gate';gate.setAttribute('aria-label','Open Space Studio');
  gate.innerHTML='<form class="entry-card"><div class="entry-brand"><button type="button" id="owner-entry" aria-label="Owner settings">LW</button> <span>SPACE STUDIO</span></div><p class="entry-version" id="entry-version"></p><h1>Let’s build something.</h1><p>Enter the shared access code to open Space Studio.</p><label for="entry-code">Access code</label><input id="entry-code" type="password" autocomplete="off" maxlength="128" required autofocus><label class="entry-reveal"><input type="checkbox" id="entry-reveal"> Show code</label><button type="submit" class="primary">Open Space Studio</button><p id="entry-message" role="status"></p><button type="button" id="entry-update">Check for updates</button><small>Your projects stay on this device. Ask the person who shared the app for the code.</small></form>';
- gate.querySelector('#entry-version').textContent=appVersion.build==='development'?'App version · Local preview':`App version · ${appVersion.build}`;
+ gate.querySelector('#entry-version').textContent=`App version · V${appVersion.release}${appVersion.build==='development'?' · Local preview':''}`;
  gate.prepend(entryClouds());
  document.body.append(gate);
  const form=gate.querySelector('form'),input=gate.querySelector('#entry-code'),button=gate.querySelector('button[type=submit]'),message=gate.querySelector('#entry-message');
