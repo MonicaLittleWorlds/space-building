@@ -1,3 +1,4 @@
+import {surfaceMaterial,wallPattern,wallPatternSVG} from './material-surfaces.mjs';
 import * as geo from './geometry.mjs';
 import * as model from './model.mjs';
 import {openSpaceFile,buildSpace} from './build.mjs';
@@ -13,7 +14,8 @@ const hash=async (text,encoding)=>Array.from(new Uint8Array(await crypto.subtle.
 export async function createNativePackage(input,{loadFloorImage,rasterize,onProgress=()=>{}}){
 const project=openSpaceFile(input),build=buildSpace(project),name='@MODEL@',prefix=`spaces/models/${name}/`,files={};
 const put=(name,content,encoding='utf8')=>{files[name]={encoding,content};};
-const cache=new Map();
+const cache=new Map(),textureCache=new Map();
+const textureData=path=>{if(!textureCache.has(path))textureCache.set(path,loadFloorImage(path));return textureCache.get(path);};
 const rooms=project.levels.map(l=>roomLayout(l).map(r=>({...r,cells:[...r.cells],boundaries:r.boundaries.map(b=>({edge:model.edgeKey(b.wall),outward:b.outward}))})));
 const coverage=[];
 const levelOffsets=[];let bottom=0;for(const l of build.scene.levels){levelOffsets.push(bottom-l.bounds.minZ);bottom+=l.bounds.maxZ-l.bounds.minZ+12;}
@@ -33,12 +35,16 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
   const w=Math.ceil(Math.max(0,...pts.map(p=>p[0])))-x0+2,h=Math.ceil(Math.max(0,...pts.map(p=>p[1])))-y0+2;fw=Math.max(fw,w);fh=Math.max(fh,h);
   frames.push({r,state,x0,y0,w,h,polygons,center});
  }
- if(!cacheKey){cacheKey=JSON.stringify({kind,box,walk,place,collapse,decorGroup,exteriorDecorGroup,clip:clip?.map(v=>v.map((n,i)=>i<2?n-anchor[i]:n)),frames:frames.map(f=>({r:f.r,state:f.state,polygons:f.polygons.map(p=>({screen:p.screen.map(v=>v.map(n=>Math.round(n*1e6)/1e6)),attrs:Object.fromEntries(Object.entries(p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4}).filter(([k])=>!k.startsWith('data-')&&k!=='pointer-events'))}))}))});
+ if(!cacheKey){cacheKey=JSON.stringify({texturePhase:frames.some(f=>f.polygons.some(p=>p.attrs?.['data-texture']))?anchor.map(n=>((n%2)+2)%2):null,kind,box,walk,place,collapse,decorGroup,exteriorDecorGroup,clip:clip?.map(v=>v.map((n,i)=>i<2?n-anchor[i]:n)),frames:frames.map(f=>({r:f.r,state:f.state,polygons:f.polygons.map(p=>({screen:p.screen.map(v=>v.map(n=>Math.round(n*1e6)/1e6)),attrs:Object.fromEntries(Object.entries(p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4}).filter(([k])=>(!k.startsWith('data-')||k==='data-texture'||k==='data-texture-basis')&&k!=='pointer-events'))}))}))});
  if(cache.has(cacheKey)){const cached=cache.get(cacheKey);placeAsset(cached.id);manifest.push({...cached,anchor,level,edge,join});return;}}
- const svgFrames=[];const imageData=floorImage?await loadFloorImage(floorImage):null;
+ const svgFrames=[];const imageData=floorImage?await textureData(floorImage):null;
  for(let i=0;i<frames.length;i++){
   const f=frames[i];const floorColor=kit.floorMaterials.find(m=>floorImage?.endsWith(`floor-${m.id}-1x1.png`))?.color||'#c1c5b8';let body=floorImage?`<g transform="translate(${f.center.join(' ')})"><polygon points="-64,0 0,-32 64,0 0,32" fill="${floorColor}" stroke="${floorColor}" stroke-width="1"/><image preserveAspectRatio="none" href="data:image/png;base64,${imageData}" x="-64" y="-32" width="128" height="64"/></g>`:'';
-  body+=f.polygons.map(p=>`<polygon points="${p.screen.map(p=>p.join(',')).join(' ')}" ${Object.entries(p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4}).filter(([k])=>!k.startsWith('data-')&&k!=='pointer-events').map(([k,v])=>`${k}="${escape(v)}"`).join(' ')}/>`).join('');
+  for(const [pi,p] of f.polygons.entries()){
+   let attrs=p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4};const m=surfaceMaterial(attrs['data-texture']);
+   if(m){const patternId=`surface-${i}-${pi}`,data=await textureData(m.texture);body+=`<defs>${wallPatternSVG(patternId,wallPattern(p.vertices,v=>projectPoint(v,f.r,anchor),attrs['data-texture-basis']),`data:image/jpeg;base64,${data}`)}</defs>`;attrs={...attrs,fill:`url(#${patternId})`,stroke:attrs['data-floor-texture']?`url(#${patternId})`:'none','stroke-width':.6};}
+   body+=`<polygon points="${p.screen.map(p=>p.join(',')).join(' ')}" ${Object.entries(attrs).filter(([k])=>!k.startsWith('data-')&&k!=='pointer-events').map(([k,v])=>`${k}="${escape(v)}"`).join(' ')}/>`;
+  }
   if(clip){const points=clip.map(v=>projectPoint(v,f.r,anchor));body=`<defs><clipPath id="clip${i}"><polygon points="${points.map(p=>p.join(',')).join(' ')}"/></clipPath></defs><g clip-path="url(#clip${i})">${body}</g>`;}
   svgFrames.push(`<g transform="translate(${(i%4)*fw-f.x0} ${Math.floor(i/4)*fh-f.y0})">${body}</g>`);
  }
@@ -58,7 +64,7 @@ for(const [li,l]of project.levels.entries()){
  for(const [k,t]of Object.entries(l.tiles)){
   if(holes.has(k))continue;
   const [x,z]=k.split(',').map(Number),n={level:l.id,x,z};
-  await sprite({id:`floor_${serial++}`,anchor:[x,z],level:li,kind:'floor',walk:model.walkable(project,n),place:t.place,layer:model.walkable(project,n)?'ground':'noaccess',box:[[-.5,-.01,-.5],[.5,0,.5]],decorGroup:t.decorGroup||null,floorImage:`assets/floor-${t.material||'blank'}-1x1.png`});
+  await sprite({id:`floor_${serial++}`,anchor:[x,z],level:li,kind:'floor',walk:model.walkable(project,n),place:t.place,layer:model.walkable(project,n)?'ground':'noaccess',box:[[-.5,-.01,-.5],[.5,0,.5]],decorGroup:t.decorGroup||null,...(surfaceMaterial(t.material)?{faces:()=>[{vertices:[[x-.5,z-.5,0],[x+.5,z-.5,0],[x+.5,z+.5,0],[x-.5,z+.5,0]],attrs:{fill:surfaceMaterial(t.material).color,'data-texture':t.material,'data-floor-texture':'true'}}]}:{floorImage:`assets/floor-${t.material||'blank'}-1x1.png`})});
  }
  for(const w of Object.values(l.walls).filter(w=>w.kind==='fence'))await sprite({id:`shadow_${serial++}`,anchor:[w.x,w.z],level:li,kind:'shadow',layer:'ground',faces:()=>geo.fenceShadowFaces({...w,gateOpen:!!w.gate},geo.fencePostOwners(w,Object.values(l.walls)))});
  const corners=geo.wallCorners(l.walls);
@@ -75,7 +81,7 @@ for(const [li,l]of project.levels.entries()){
    return orderFaces(faces,r);
   }});
  }
- for(const c of corners)await sprite({id:`corner_${serial++}`,anchor:[c.x,c.z],level:li,kind:'join',join:c.walls.map(model.edgeKey),box:[[-geo.KIT.wallThickness/2,0,-geo.KIT.wallThickness/2],[geo.KIT.wallThickness/2,c.height/64,geo.KIT.wallThickness/2]],collapse:c.walls.some(w=>w.collapse),faces:(r,state)=>geo.wallCornerFaces({...c,height:state==='Down'?26:c.height},r).map(f=>{const w=f.wall,exterior=geo.wallSide({...w,facing:geo.wallFacing(w,l.tiles)},r)==='back';return {...f,color:f.part==='cap'?'#e2e7d9':kit.wallMaterials.find(m=>m.id===(exterior?(w.exteriorMaterial||w.material):w.material))?.color||'#d3d7c9'};})});
+ for(const c of corners)await sprite({id:`corner_${serial++}`,anchor:[c.x,c.z],level:li,kind:'join',join:c.walls.map(model.edgeKey),box:[[-geo.KIT.wallThickness/2,0,-geo.KIT.wallThickness/2],[geo.KIT.wallThickness/2,c.height/64,geo.KIT.wallThickness/2]],collapse:c.walls.some(w=>w.collapse),faces:(r,state)=>geo.wallCornerFaces({...c,height:state==='Down'?26:c.height},r).map(f=>{const w=f.wall,exterior=geo.wallSide({...w,facing:geo.wallFacing(w,l.tiles)},r)==='back';const material=exterior?(w.exteriorMaterial||w.material):w.material;return {...f,...(f.part!=='cap'&&surfaceMaterial(material)?{attrs:{fill:surfaceMaterial(material).color,'data-texture':material}}:{}),color:f.part==='cap'?'#e2e7d9':kit.wallMaterials.find(m=>m.id===(exterior?(w.exteriorMaterial||w.material):w.material))?.color||'#d3d7c9'};})});
  for(const s of project.stairs){const end=[s.a,s.b].find(e=>e.level===l.id);if(!end)continue;const levels=geo.stairLevels(project,s),lower=levels.lower===end;
   if(lower){
    const views=Array.from({length:4},(_,r)=>geo.stairFaces(end,r)),all=views.flat().flatMap(f=>f.vertices);
@@ -89,7 +95,7 @@ for(const [li,l]of project.levels.entries()){
    const well=geo.stairwell(project,s,0);if(!well)continue;
    const below=model.levelOf(project,well.lower.level);
    await sprite({id:`well_${serial++}`,anchor:[end.x,end.z],level:li,kind:'well',layer:'ground',clip:well.opening,faces:r=>{
-    const w=geo.stairwell(project,s,r),faces=Object.entries(below.tiles).map(([k,t])=>{const [x,z]=k.split(',').map(Number);return{color:kit.floorMaterials.find(m=>m.id===(t.material||'blank'))?.color||'#c1c5b8',vertices:[[x-.5,z-.5],[x+.5,z-.5],[x+.5,z+.5],[x-.5,z+.5]].map(p=>w.belowPoint(...p))};});
+    const w=geo.stairwell(project,s,r),faces=Object.entries(below.tiles).map(([k,t])=>{const [x,z]=k.split(',').map(Number);return{...(surfaceMaterial(t.material)?{attrs:{fill:surfaceMaterial(t.material).color,'data-texture':t.material,'data-floor-texture':true,'data-texture-basis':[[-.5,-.5],[1.5,-.5],[-.5,1.5]].map(p=>w.belowPoint(...p))}}:{}),color:kit.floorMaterials.find(m=>m.id===(t.material||'blank'))?.color||'#c1c5b8',vertices:[[x-.5,z-.5],[x+.5,z-.5],[x+.5,z+.5],[x-.5,z+.5]].map(p=>w.belowPoint(...p))};});
     return [...faces,...orderFaces(w.faces,r)];
    }});
   }

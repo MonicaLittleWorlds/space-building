@@ -5,6 +5,7 @@ import {orderFaces} from './face-order.mjs';
 const cache=new Map(),pickers=[];
 const esc=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 export function styleThumbnail(kind,value,span=1){
+ if(kind==='wall'){const m=kit.wallMaterials.find(m=>m.id===value);if(m?.texture)return m.texture;}
  if(kind==='floor')return `assets/floor-${value}-1x1.png`;
  const key=kind+':'+value+':'+span;if(cache.has(key))return cache.get(key);
  let faces;

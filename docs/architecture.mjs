@@ -1,3 +1,4 @@
+import {surfaceMaterial} from './material-surfaces.mjs';
 import {KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
 import {cutProfile} from './rooms.mjs';
 
@@ -8,7 +9,7 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),coll
   const at=(u,y,d=0)=>{const side=w.axis==='x'?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];return [a[0]+(b[0]-a[0])*u+(w.axis==='x'?side*d:0),a[1]+(b[1]-a[1])*u+(w.axis==='z'?side*d:0),y];};
   const flat=(u,v,low,high,color,overrides={})=>polygon([at(u,low),at(v,low),at(v,high),at(u,high)],{fill:color,stroke:back?'none':color,'stroke-width':.35,...attrs,...overrides});
   const panel=(u,v,low,high,color=fill,overrides={})=>{
-    flat(u,v,low,high,color,overrides);
+    flat(u,v,low,high,color,{...(!back&&color===fill&&surfaceMaterial(material)?{'data-texture':material}:{}),...overrides});
     if(back||color!==fill||Object.keys(overrides).length||!['brick','stone','wood','panel'].includes(material))return;
     const patch=(x0,x1,y0,y1,tone,part)=>{x0=Math.max(u,x0);x1=Math.min(v,x1);y0=Math.max(low,y0);y1=Math.min(high,y1);if(x1>x0&&y1>y0)flat(x0,x1,y0,y1,tintColor(fill,tone),{'data-part':part,stroke:'none'});};
     const motif=(points,tone,part)=>{
@@ -79,7 +80,7 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),coll
     const ranges=w.kind==='door'?[[0,.16],[.84,1]]:[[0,1]];
     for(const [lo,hi] of ranges){
       const top=[[lo,heightAt(lo)],...profile.filter(([u])=>u>lo&&u<hi),[hi,heightAt(hi)]];
-      polygon([at(lo,0),at(hi,0),...top.slice().reverse().map(([u,h])=>at(u,h))],{fill,stroke:fill,'stroke-width':.3,...attrs,'data-part':'room-cut'});
+      polygon([at(lo,0),at(hi,0),...top.slice().reverse().map(([u,h])=>at(u,h))],{fill,stroke:fill,'stroke-width':.3,...attrs,'data-part':'room-cut',...(!back&&surfaceMaterial(material)?{'data-texture':material}:{})});
       for(let i=1;i<top.length;i++){const [u,h]=top[i-1],[v,k]=top[i];polygon([at(u,h),at(v,k),at(v,k,-side*2*t),at(u,h,-side*2*t)],{fill:back?'#263e35':'#e2e7d9',...attrs,'data-part':'cap'});}
       for(const [u,h] of [top[0],top.at(-1)])if(u>0&&u<1)polygon([at(u,0),at(u,0,-side*2*t),at(u,h,-side*2*t),at(u,h)],{fill:back?'#172c26':'#86958a',...attrs,'data-part':'end'});
     }
@@ -97,7 +98,7 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,corners),coll
       if(w.doorStyle==='arch'){
         const at=(u,y)=>[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,y];
         const arch=u=>h*.66+Math.sqrt(Math.max(0,1-((u-.5)/(.5-L))**2))*h*.17;
-        for(let i=0;i<16;i++){const u=L+(R-L)*i/16,v=L+(R-L)*(i+1)/16;polygon([at(u,arch(u)),at(v,arch(v)),at(v,h),at(u,h)],{fill,...attrs});polygon([at(u,arch(u)),at(v,arch(v)),at(v,arch(v)+5),at(u,arch(u)+5)],{fill:back?fill:'#e8e2d2',...attrs});}
+        for(let i=0;i<16;i++){const u=L+(R-L)*i/16,v=L+(R-L)*(i+1)/16;polygon([at(u,arch(u)),at(v,arch(v)),at(v,h),at(u,h)],{fill,...attrs,...(!back&&surfaceMaterial(material)?{'data-texture':material}:{})});polygon([at(u,arch(u)),at(v,arch(v)),at(v,arch(v)+5),at(u,arch(u)+5)],{fill:back?fill:'#e8e2d2',...attrs});}
       }else{panel(L,R,top,h);panel(L-.025,R+.025,top-4,top+5,back?fill:'#e8e2d2');}
       panel(L-.035,L,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#b3b7a9');panel(R,R+.035,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#e8e2d2');
       const trim=back?fill:'#e5decb',reveal=back?fill:'#8e9285';
