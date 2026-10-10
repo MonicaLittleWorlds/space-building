@@ -329,7 +329,7 @@ $('cancel-stair').onclick=()=>{pending=null;render();};
 $('add-level').onclick=()=>{history();const id=`floor-${crypto.randomUUID()}`;project.levels.push({id,name:`Floor ${project.levels.length+1}`,tiles:{},walls:{},items:[]});active=id;changed();};
 function stopPlay(){cancelAnimationFrame(timer);avatarMoving=false;timer=null;playing=false;avatar=null;}
 $('play').onclick=()=>{if(playing)stopPlay();else{if(!project.spawn||!walkable(project,project.spawn)){status('Set a valid entry point before starting the walk test.');return;}playing=true;avatar={...project.spawn};active=avatar.level;pending=null;}render();};
-function replace(p){undo=[];redo=[];stopPlay();project=ensureDecor(p);refreshDecor();active=p.levels[0].id;pending=null;roomStart=null;pan={x:0,y:0};changed();}
+function replace(p){issueFocus=null;undo=[];redo=[];stopPlay();project=ensureDecor(p);refreshDecor();active=p.levels[0].id;pending=null;roomStart=null;pan={x:0,y:0};changed();}
 async function openAsNew(p){if(library){library.save(project);const result=await library.create(p);p=result.project;}replace(p);refreshProjects();}
 $('new').onclick=()=>openAsNew(blankProject()).catch(e=>status(e.message));
 $('new-top').onclick=()=>$('new').click();
@@ -470,9 +470,24 @@ function saveForUpdate(){if(reviewMode)return;if(pending)throw Error('Finish or 
 versionGate.setProjectActions({pause:()=>{stopPlay();drag=false;panStart=null;render();},save:saveForUpdate,backup:()=>saveData(project,project.name)});
 initWebApp(saveForUpdate);
 
-function refreshProjects(){const picker=$('project-picker');picker.replaceChildren();if(!library){picker.disabled=true;$('open-project').disabled=true;return;}for(const r of library.list()){const o=document.createElement('option');o.value=r.id;o.textContent=(r.project.name||'Untitled LW space')+' · '+new Date(r.updated).toLocaleString();picker.append(o);}picker.value=library.current;}
+function refreshProjects(){
+ const picker=$('project-picker'),deleted=$('deleted-project-picker'),selected=picker.value;picker.replaceChildren();deleted.replaceChildren();
+ const rows=library?.list()||[],trash=library?.deleted()||[];
+ for(const [items,select] of [[rows,picker],[trash,deleted]])for(const r of items){const o=document.createElement('option');o.value=r.id;o.textContent=(r.project.name||'Untitled LW space')+' · '+new Date(r.updated).toLocaleString();select.append(o);}
+ picker.value=rows.some(r=>r.id===selected)?selected:library?.current||'';
+ picker.disabled=!rows.length;deleted.disabled=!trash.length;$('open-project').disabled=!rows.length;$('delete-project').disabled=!rows.length;$('restore-project').disabled=!trash.length;
+}
+$('delete-project').onclick=async()=>{
+ if(!library)return;try{const id=$('project-picker').value,r=library.get(id),current=id===library.current;
+ if(!confirm(`Delete “${r.project.name}” saved ${new Date(r.updated).toLocaleString()}?\nYou can restore it from Deleted projects on this device.${current?' A blank project will open in its place.':''}`))return;
+ if(current)library.save(project);await library.trash(id);
+ if(current){const result=await library.create(blankProject());replace(result.project);}
+ refreshProjects();status(`“${r.project.name}” moved to Deleted projects. You can restore it below the saved-project list.`);
+ }catch(e){status(e.message);}
+};
+$('restore-project').onclick=()=>{if(!library)return;try{const r=library.restore($('deleted-project-picker').value);refreshProjects();$('project-picker').value=r.id;status(`“${r.project.name}” restored. Choose Open selected project to edit it.`);}catch(e){status(e.message);}};
 $('open-project').onclick=async()=>{if(!library)return;try{const id=$('project-picker').value;library.save(project);const result=await library.open(id);replace(result.project);refreshProjects();status(result.copied?'That project is open elsewhere. You are editing an independent tab copy.':'Project opened in this tab.');}catch(e){status(e.message);}};
 $('refresh-projects').onclick=refreshProjects;
-window.addEventListener('storage',e=>{if(e.key?.startsWith('lw-studio-project:'))refreshProjects();});
+window.addEventListener('storage',e=>{if(e.key?.startsWith('lw-studio-project:')||e.key?.startsWith('lw-studio-trash:'))refreshProjects();});
 $('name').addEventListener('change',refreshProjects);
 refreshProjects();
