@@ -40,6 +40,7 @@ function status(s){$('status').textContent=s;}
 function persist(){if(reviewMode)return;try{if(!library)throw Error('Storage unavailable');library.save(project);}catch{status('Browser storage unavailable. Use Save project to keep this design.');}}
 function history(){undo.push(clone());if(undo.length>80)undo.shift();redo=[];}
 function changed(){ensureDecor(project);roomCache=new WeakMap();persist();render();}
+let surfacePatterns=new Map(),previewSurfacePatterns=new Map(),panFrame=null;
 let renderParent=null,viewMetrics=null,placementPointer=null,previewDrawing=false,previewFrame=null;
 function element(tag,attrs={},parent=renderParent||svg){const el=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);parent.append(el);return el;}
 function text(x,y,value,attrs={}){const el=element('text',{x,y,'text-anchor':'middle','font-family':'system-ui','font-size':11,'pointer-events':'none',...attrs});el.textContent=value;return el;}
@@ -59,7 +60,7 @@ function choosingWalls(){return !playing&&!previewDrawing&&$('overlay').value===
 function facingWall(w){return {...w,facing:wallFacing(w,levelOf(project,active).tiles)};}
 function wallPaint(w){const exterior=wallSide(facingWall(w),rotation)==='back',material=exterior?(w.exteriorMaterial||w.material):w.material;const back=!choosingWalls()&&wallUsesBackShadow(facingWall(w),rotation),mount=$('overlay').value==='mount'&&w.mount;let fill=kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9';if(mount)fill='#75b6d3';if($('overlay').value==='decor'&&$('decor-kind').value==='wall')fill=decorColor(w[decorField('wall',$('decor-area').value)])||fill;if(back)fill='#142e2a';return {back,fill,material,opacity:previewDrawing?1:roomWallOpacity(w,cutSelection,$('wall-view').value,+$('wall-opacity').value/100,back)};}
 let faceQueue=null;
-function polygon(vertices,attrs){if(choosingFloors()&&['wall','window','door','wall-corner','fence'].includes(attrs['data-kind']))vertices=vertices.map(([x,z,h])=>[x,z,Math.min(h,18)]);if(tool==='decor'&&$('decor-kind').value==='wall'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-decor-edge':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(tool==='select'&&!playing&&attrs['data-kind']==='window'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-piece-kind':'window','data-piece-id':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(faceQueue){faceQueue.push({vertices,attrs});return;}if(attrs['data-texture']){const m=surfaceMaterial(attrs['data-texture']);if(m){const matrix=wallPattern(vertices,v=>projection(...v),attrs['data-texture-basis']),key=m.id+':'+matrix.map(n=>n.toFixed(4)).join(','),existing=[...svg.querySelectorAll('pattern')].find(p=>p.dataset.surface===key),id=existing?.id||'surface-'+svg.querySelectorAll('pattern').length;if(!existing){const pattern=element('pattern',{id,'data-surface':key,patternUnits:'userSpaceOnUse',width:1,height:1,patternTransform:`matrix(${matrix.join(' ')})`},svg);element('image',{href:m.texture,width:1,height:1,preserveAspectRatio:'none'},pattern);}attrs={...attrs,fill:`url(#${id})`,stroke:attrs['data-floor-texture']?`url(#${id})`:'none','stroke-width':.6};}}element('polygon',{points:points(vertices),...attrs});}
+function polygon(vertices,attrs){if(choosingFloors()&&['wall','window','door','wall-corner','fence'].includes(attrs['data-kind']))vertices=vertices.map(([x,z,h])=>[x,z,Math.min(h,18)]);if(tool==='decor'&&$('decor-kind').value==='wall'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-decor-edge':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(tool==='select'&&!playing&&attrs['data-kind']==='window'&&attrs['data-wall-axis'])attrs={...attrs,'pointer-events':'visiblePainted','data-piece-kind':'window','data-piece-id':`${attrs['data-wall-axis']}:${attrs['data-wall-x']},${attrs['data-wall-z']}`};if(faceQueue){faceQueue.push({vertices,attrs});return;}if(attrs['data-texture']){const m=surfaceMaterial(attrs['data-texture']);if(m){const matrix=wallPattern(vertices,v=>projection(...v),attrs['data-texture-basis']),key=m.id+':'+matrix.map(n=>n.toFixed(4)).join(','),patterns=previewDrawing?previewSurfacePatterns:surfacePatterns,existing=patterns.get(key),id=existing||(previewDrawing?'preview-surface-':'surface-')+patterns.size;if(!existing){patterns.set(key,id);const pattern=element('pattern',{id,'data-surface':key,patternUnits:'userSpaceOnUse',width:1,height:1,patternTransform:`matrix(${matrix.join(' ')})`},previewDrawing?renderParent:svg);element('image',{href:m.texture,width:1,height:1,preserveAspectRatio:'none'},pattern);}attrs={...attrs,fill:`url(#${id})`,stroke:attrs['data-floor-texture']?`url(#${id})`:'none','stroke-width':.6};}}element('polygon',{points:points(vertices),...attrs});}
 function drawCorner(corner){for(const face of wallCornerFaces(corner,rotation)){const {back,fill,opacity,material}=wallPaint(face.wall);polygon(face.vertices,{fill:face.part==='cap'?tintColor(fill,1.10):fill,opacity:face.part==='cap'?Math.max(...corner.walls.map(w=>wallPaint(w).opacity)):opacity,'pointer-events':'none',...(!back&&face.part!=='cap'&&surfaceMaterial(material)?{'data-texture':material}:{}),'data-kind':'wall-corner','data-corner-id':corner.id,'data-level':active,'data-part':face.part,'data-material':face.wall.material||'blank'});}}
 function collapsedWall(w){if(choosingFloors())return true;if(choosingWalls())return false;return !previewDrawing&&['auto','cut'].includes($('wall-view').value)&&cutSelection.has(edgeKey(w));}
 function drawWall(w,corners=[]){for(const face of wallFaces(w,{level:levelOf(project,active),rotation,corners,collapsed:collapsedWall(w),paint:wallPaint(w),cutSelection:choosingFloors()?new Set(Object.keys(levelOf(project,active).walls)):cutSelection}))polygon(face.vertices,face.attrs);}
@@ -72,10 +73,11 @@ function drawSpaceUndershadow(level){
   const d=cells.map(id=>{const [x,z]=id.split(',').map(Number);return diamond(x,z).map(([a,b],i)=>`${i?'L':'M'}${projection(a,b).join(' ')}`).join(' ')+'Z';}).join(' ');
   element('path',{d,fill:'#173e49',stroke:'#173e49','stroke-width':s,opacity:.32,transform:`translate(${8*s} ${24*s})`,filter:'url(#space-undershadow-blur)','pointer-events':'none','aria-hidden':'true','data-kind':'space-undershadow'});
 }
-function render(){
+function render({fast=false}={}){
+  if(issueFocus)fast=false;
   // Measure once before SVG writes; per-face layout reads make rotation and walking stall.
   const width=svg.clientWidth,height=svg.clientHeight;viewMetrics={width,height,scale:+$('zoom').value/100*Math.min(1,width/780,height/720)};
-  const l=levelOf(project,active);if(!roomCache.has(l))roomCache.set(l,roomLayout(l));const cutaway=roomCutaway(l,{avatar:playing?avatar:null,rotation,mode:$('wall-view').value,rooms:roomCache.get(l)});cutSelection=cutaway.selected;svg.replaceChildren();const nativeBackground=$('background-view').value==='native';svg.style.background=nativeBackground?'linear-gradient(#9BECFC,#00C4F5)':'';svg.parentElement.classList.toggle('native-background',nativeBackground);
+  const l=levelOf(project,active);if(!roomCache.has(l))roomCache.set(l,roomLayout(l));const cutaway=roomCutaway(l,{avatar:playing?avatar:null,rotation,mode:$('wall-view').value,rooms:roomCache.get(l)});cutSelection=cutaway.selected;svg.replaceChildren();surfacePatterns.clear();const nativeBackground=$('background-view').value==='native';svg.style.background=nativeBackground?'linear-gradient(#9BECFC,#00C4F5)':'';svg.parentElement.classList.toggle('native-background',nativeBackground);
   if(nativeBackground&&!choosingWalls())drawSpaceUndershadow(l);
   const corners=[[0,0],[svg.clientWidth,0],[0,svg.clientHeight],[svg.clientWidth,svg.clientHeight]].map(([x,y])=>gridAt(x,y));
   const minX=Math.floor(Math.min(...corners.map(p=>p.wx)))-1,maxX=Math.ceil(Math.max(...corners.map(p=>p.wx)))+1,minZ=Math.floor(Math.min(...corners.map(p=>p.wz)))-1,maxZ=Math.ceil(Math.max(...corners.map(p=>p.wz)))+1;
@@ -139,6 +141,8 @@ function render(){
     else polygon(face.vertices,face.attrs);
   }
   if(tool==='select'&&!playing&&$('piece-kind').value==='stair'){const t=decorPieces(project,active,'stair').find(t=>t.id===$('piece-target').value);if(t)for(const c of triggerCells(t.value))tile(c.x,c.z,'none','#ffe0a0',{'stroke-width':3,'pointer-events':'none','data-kind':'selected-stair-base'});}
+  $('active-room').textContent=playing?'Walking area: '+(cutaway.room?.name||'Outside'):'Closed rooms are detected automatically. Mark open-plan rooms with Room area.';
+  if(!fast){
   $('name').value=project.name;
   $('levels').replaceChildren();for(const level of project.levels){const b=document.createElement('button');b.className=level.id===active?'active':'';b.textContent=level.name;const small=document.createElement('small');small.textContent=`${Object.keys(level.tiles).length} floor tiles`;b.append(small);b.onclick=()=>{active=level.id;render();};b.ondblclick=()=>{if(playing)return;const name=prompt('Floor name',level.name);if(name?.trim()){history();level.name=name.trim().slice(0,80);changed();}};$('levels').append(b);}
   $('stairs').replaceChildren();for(const s of project.stairs){const row=document.createElement('div');row.className='stair-row';row.textContent=`${levelOf(project,s.a.level).name} ↔ ${levelOf(project,s.b.level).name}`;const b=document.createElement('button');b.textContent='×';b.ariaLabel=`Remove ${s.id}`;b.disabled=playing;b.onclick=()=>{history();project.stairs=project.stairs.filter(t=>t.id!==s.id);changed();};row.append(b);$('stairs').append(row);}
@@ -156,7 +160,9 @@ function render(){
   [...$('views').children].forEach((b,i)=>b.classList.toggle('active',i===rotation));
   $('wall-opacity-value').textContent=$('wall-opacity').value+'% visible';
   $('pan').classList.toggle('active',panMode);$('pan').setAttribute('aria-pressed',String(panMode));svg.style.cursor=panStart?'grabbing':panMode?'grab':'';
-  refreshDecor();$('undo').disabled=!undo.length||playing;$('redo').disabled=!redo.length||playing;$('add-level').disabled=playing;$('play').textContent=playing?'■ End walk test':'▶ Walk test';drawPlacementPreview();viewMetrics=null;
+  refreshDecor();$('undo').disabled=!undo.length||playing;$('redo').disabled=!redo.length||playing;$('add-level').disabled=playing;$('play').textContent=playing?'■ End walk test':'▶ Walk test';
+  }
+  drawPlacementPreview();viewMetrics=null;
 }
 function showUnreachable(index=0){
  const cells=unreachableCells(project);if(!cells.length){issueFocus=null;render();return;}
@@ -192,6 +198,7 @@ function stairPlacementProblem(end){
 }
 function drawPlacementPreview(){
  svg.querySelector('#placement-preview')?.remove();
+ previewSurfacePatterns.clear();
  if(!placementPointer||playing||panMode||panStart||!['floor','wall','door','window','fence','gate','stairs','item','spawn','room'].includes(tool))return;
  const p=unproject(placementPointer),x=Math.round(p.wx),z=Math.round(p.wz),n={level:active,x,z},l=levelOf(project,active),edge=nearestEdge(p);
  if(!Number.isSafeInteger(x)||!Number.isSafeInteger(z))return;
@@ -263,12 +270,12 @@ function walkTo(e){if(timer)return;const p=unproject(e),goal={level:active,x:Mat
    start??=now;const t=Math.min(1,(now-start)/240),dx=step.node.x-from.x,dz=step.node.z-from.z;
    if(dx||dz)avatarHeading={x:dx,z:dz};avatar={level:from.level,x:from.x+dx*t,z:from.z+dz*t};avatarPhase=(i+t)*Math.PI;
    if(t===1){avatar={...step.node};i++;from={...avatar};start=null;status(`Walking · X ${avatar.x}, Z ${avatar.z}`);}
-   render();timer=requestAnimationFrame(frame);
+   render({fast:true});timer=requestAnimationFrame(frame);
   };timer=requestAnimationFrame(frame);
 }
 svg.addEventListener('contextmenu',e=>e.preventDefault());
 svg.addEventListener('pointerdown',e=>{placementPointer={clientX:e.clientX,clientY:e.clientY};if((e.button===0&&panMode)||e.button===1||e.button===2||e.altKey){e.preventDefault();drag=false;svg.style.cursor='grabbing';panStart={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};svg.setPointerCapture(e.pointerId);drawPlacementPreview();return;}if(e.button!==0)return;if(playing){walkTo(e);return;}if(tool==='select'){selectPieceAt(e);return;}history();drag=true;painted.clear();svg.setPointerCapture(e.pointerId);edit(e);});
-svg.addEventListener('pointermove',e=>{placementPointer={clientX:e.clientX,clientY:e.clientY};queuePlacementPreview();const p=unproject(e);$('coords').textContent=`X ${Math.round(p.wx)} · Z ${Math.round(p.wz)}`;if(panStart){pan={x:panStart.px+e.clientX-panStart.x,y:panStart.py+e.clientY-panStart.y};render();}else if(drag&&['floor','wall','fence','decor','erase'].includes(tool))edit(e);});
+svg.addEventListener('pointermove',e=>{placementPointer={clientX:e.clientX,clientY:e.clientY};queuePlacementPreview();const p=unproject(e);$('coords').textContent=`X ${Math.round(p.wx)} · Z ${Math.round(p.wz)}`;if(panStart){pan={x:panStart.px+e.clientX-panStart.x,y:panStart.py+e.clientY-panStart.y};if(panFrame===null)panFrame=requestAnimationFrame(()=>{panFrame=null;render({fast:true});});}else if(drag&&['floor','wall','fence','decor','erase'].includes(tool))edit(e);});
 svg.addEventListener('pointerleave',()=>{placementPointer=null;drawPlacementPreview();});
 svg.addEventListener('pointercancel',()=>{placementPointer=null;drawPlacementPreview();});
 for(const event of ['pointerup','pointercancel','lostpointercapture'])svg.addEventListener(event,()=>{drag=false;panStart=null;svg.style.cursor=panMode?'grab':'';queuePlacementPreview();});
