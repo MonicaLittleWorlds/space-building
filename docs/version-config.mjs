@@ -1,1 +1,1 @@
-export default {"enabled": true, "build": "a5b6e8fc70a6503e", "release": "1.19"};
+export default {"enabled": true, "build": "4dc5366ca0164c77", "release": "1.20"};

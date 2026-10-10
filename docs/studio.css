@@ -8,11 +8,11 @@
 
 body[data-locked]>header,body[data-locked]>main,body[data-locked]>#web-app{display:none!important}
 #entry-gate{min-height:100vh;display:grid;place-items:center;padding:28px;background:radial-gradient(ellipse at 30% 20%,#294e45,#101b1e 70%)}
-.entry-card{width:min(100%,420px);padding:38px;border:1px solid #4c6d61;border-radius:18px;background:#192a2b;box-shadow:0 20px 70px #0005}
+.entry-card{width:min(100%,420px);padding:24px;border:1px solid #4c6d61;border-radius:18px;background:#192a2b;box-shadow:0 20px 70px #0005}
 .entry-brand{font-size:32px;font-weight:800;color:#bde4d0}.entry-brand span{font-size:12px;letter-spacing:3px;vertical-align:middle;margin-left:12px}
-.entry-card h1{font-size:27px;font-weight:500;margin:30px 0 12px}.entry-card p,.entry-card small{color:#b0c5bc;line-height:1.6}
+.entry-card h1{font-size:27px;font-weight:500;margin:18px 0 8px}.entry-card p,.entry-card small{color:#b0c5bc;line-height:1.6}
 .entry-card input[type=password],.entry-card input[type=text]{width:100%;background:#102021;border:1px solid #739584;border-radius:8px;padding:13px;color:#e2efe7;font:16px system-ui}
-.entry-card button{width:100%;padding:13px;margin:12px 0}.entry-card small{display:block;font-size:12px}.entry-card #entry-message{min-height:24px;color:#efd1a8}.entry-reveal{display:flex;align-items:center;gap:6px}
+.entry-card button{width:100%;padding:11px;margin:6px 0}.entry-card small{display:block;font-size:12px}.entry-card #entry-message{margin:8px 0;color:#efd1a8}.entry-card #entry-message:empty{display:none}.entry-reveal{display:flex;align-items:center;gap:6px;margin:8px 0}.entry-card p{margin:8px 0}.entry-card label[for="entry-code"]{margin:10px 0 6px}.entry-card small{margin-top:8px}
 
 #room-name{width:100%;margin-top:8px;background:#253337;border:1px solid #435353;color:#d8e6df;padding:8px;border-radius:6px}
 
@@ -38,4 +38,4 @@ body[data-locked]>header,body[data-locked]>main,body[data-locked]>#web-app{displ
 
 .sidebar-panel[hidden],.right [hidden]{display:none!important}.sidebar-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;position:sticky;top:-24px;background:#152023;padding:8px 0;z-index:2}.sidebar-panel>.section:first-of-type{margin-top:14px}.finish-actions{display:grid;gap:8px}.sidebar-panel summary{cursor:pointer;margin:12px 0;color:#b5d8c8}.sidebar-panel #add-level{width:100%;margin-top:10px}
 
-.entry-card .entry-version{margin:12px 0 0;color:#a8c4b8;font-size:12px;letter-spacing:.04em;overflow-wrap:anywhere}
+.entry-card .entry-version{margin:6px 0 0;color:#a8c4b8;font-size:12px;letter-spacing:.04em;overflow-wrap:anywhere}
