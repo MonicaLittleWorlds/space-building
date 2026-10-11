@@ -22,10 +22,12 @@ export function wallContactShadows(level,holes=new Set(),walls=Object.values(lev
    if(!level.tiles[cell]||holes.has(cell))continue;
    const edge=w.axis==='x'?w.x-.5:w.z-.5,start=w.axis==='x'?w.z-.5:w.x-.5;
    const indoor=(level.rooms||[]).some(r=>r.kind==='indoor'&&x>=r.x&&z>=r.z&&x<r.x+r.width&&z<r.z+r.depth);
-   const spread=indoor?.25:.42;
-   for(const [fraction,opacity] of [[1,.022],[.75,.028],[.50,.035],[.30,.043],[.15,.06]]){
+   const spread=indoor?.25:.48;
+   // Begin at the visible wall face; centerline contact was hidden inside its thickness.
+   const wallFaceOffset=.06;
+   for(const [fraction,opacity] of [[1,.028],[.75,.04],[.50,.055],[.30,.07],[.15,.085]]){
     const width=spread*fraction;
-    const point=(u,d)=>w.axis==='x'?[edge+sign*d,start+u,.015]:[start+u,edge+sign*d,.015];
+    const point=(u,d)=>w.axis==='x'?[edge+sign*(wallFaceOffset+d),start+u,.015]:[start+u,edge+sign*(wallFaceOffset+d),.015];
     let poly=[point(0,0),point(1,0),point(1,width),point(0,width)];
     // Partition inside corners by the nearest wall, so soft bands never stack twice.
     for(const crossWall of Object.values(level.walls)){
