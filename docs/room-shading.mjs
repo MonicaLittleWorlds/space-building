@@ -12,7 +12,8 @@ export function shadeArchitecture(faces,rotation=0){
   return {...f,color:tone(f.color),attrs:{...attrs,fill,...(attrs.stroke&&attrs.stroke!=='none'?{stroke:tone(attrs.stroke)}:{}),...(attrs['data-texture']?{'data-surface-light':light}:{})}};
  });
 }
-// Nested strips form a soft falloff without per-tile borders or blurred textures.
+// Fine equal-distance bands approximate a smooth quadratic falloff in shared sprites.
+export const CONTACT_SHADOW_BANDS=32;
 export function wallContactShadows(level,holes=new Set(),walls=Object.values(level.walls)){
  const faces=[];
  for(const w of walls){
@@ -25,7 +26,11 @@ export function wallContactShadows(level,holes=new Set(),walls=Object.values(lev
    const spread=indoor?.25:.48;
    // Begin at the visible wall face; centerline contact was hidden inside its thickness.
    const wallFaceOffset=.06;
-   for(const [fraction,opacity] of [[1,.028],[.75,.04],[.50,.055],[.30,.07],[.15,.085]]){
+   for(let band=0;band<CONTACT_SHADOW_BANDS;band++){
+    const fraction=1-band/CONTACT_SHADOW_BANDS;
+    const previous=.24*(band/CONTACT_SHADOW_BANDS)**2;
+    const target=.24*((band+1)/CONTACT_SHADOW_BANDS)**2;
+    const opacity=(target-previous)/(1-previous);
     const width=spread*fraction;
     const point=(u,d)=>w.axis==='x'?[edge+sign*(wallFaceOffset+d),start+u,.015]:[start+u,edge+sign*(wallFaceOffset+d),.015];
     let poly=[point(0,0),point(1,0),point(1,width),point(0,width)];
