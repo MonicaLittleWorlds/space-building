@@ -1,3 +1,5 @@
+import kit from './kit.mjs';
+import {wallCorners,wallCornerFaces,wallSide,fenceFaces,fencePostOwners} from './geometry.mjs';
 import {shadeArchitecture} from './room-shading.mjs';
 import {surfaceMaterial} from './material-surfaces.mjs';
 import {meshBuilder,KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
@@ -191,4 +193,32 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
   for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,level.walls))polygon(quad(p,p,w.kind==='door'?h*(w.doorStyle==='wide'?.88:w.doorStyle==='arch'?.83:.78):0,h),{fill:tintColor(fill,.70),...attrs,'data-part':'end'});
 }
  draw(w,corners);return shadeArchitecture(faces,rotation);
+}
+
+// Static architecture seen through a stair opening belongs to the lower floor.
+// Both renderers clip these faces to the upstairs opening after projection.
+export function stairwellWallFaces(well,below,rotation=0){
+ const origin=well.belowPoint(0,0),bx=well.belowPoint(1,0),bz=well.belowPoint(0,1),sx=[1,1,-1,-1][rotation],sz=[1,-1,-1,1][rotation];
+ const lowerSX=Math.sign((bx[0]-origin[0])*sx+(bx[1]-origin[1])*sz),lowerSZ=Math.sign((bz[0]-origin[0])*sx+(bz[1]-origin[1])*sz);
+ const lowerRotation=[0,1,2,3].find(r=>[1,1,-1,-1][r]===lowerSX&&[1,-1,-1,1][r]===lowerSZ);
+ const walls=Object.values(below.walls),corners=wallCorners(below.walls),faces=[];
+ const materialFor=w=>wallSide({...w,facing:wallFacing(w,below.tiles)},lowerRotation)==='back'?(w.exteriorMaterial||w.material):w.material;
+ for(const w of walls){
+  if(w.kind==='fence'){faces.push(...fenceFaces(w,lowerRotation,fencePostOwners(w,walls)));continue;}
+  const material=materialFor(w),fill=kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9';
+  faces.push(...wallFaces(w,{level:below,rotation:lowerRotation,corners,paint:{material,fill,opacity:1}}));
+ }
+ for(const c of corners)faces.push(...shadeArchitecture(wallCornerFaces(c,lowerRotation).map(f=>{
+  const material=materialFor(f.wall),fill=kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9';
+  return {...f,color:fill,attrs:{fill,...(f.part!=='cap'&&surfaceMaterial(material)?{'data-texture':material}:{})}};
+ }),lowerRotation));
+ return faces.map(f=>{
+  const attrs={fill:f.color,...f.attrs,'data-kind':'wall-below','pointer-events':'none'},transform=p=>well.belowPoint(...p);
+  if(attrs['data-texture']&&!attrs['data-texture-basis']){
+   const v=f.vertices,alongX=Math.max(...v.map(p=>p[0]))-Math.min(...v.map(p=>p[0]))>Math.max(...v.map(p=>p[1]))-Math.min(...v.map(p=>p[1])),fixed=v[0][alongX?1:0];
+   attrs['data-texture-basis']=alongX?[[-.5,fixed,256],[1.5,fixed,256],[-.5,fixed,0]]:[[fixed,-.5,256],[fixed,1.5,256],[fixed,-.5,0]];
+  }
+  for(const k of ['data-texture-basis','data-sprite-basis'])if(attrs[k])attrs[k]=attrs[k].map(transform);
+  return {...f,vertices:f.vertices.map(transform),attrs};
+ });
 }

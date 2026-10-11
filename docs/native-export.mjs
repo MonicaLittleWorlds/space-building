@@ -6,7 +6,7 @@ import {openSpaceFile,buildSpace} from './build.mjs';
 import {orderFaces} from './face-order.mjs';
 import {cameraGridPosition,gridToScreen} from './native-coordinate.mjs';
 import kit from './kit.mjs';
-import {wallFaces} from './architecture.mjs';
+import {wallFaces,stairwellWallFaces} from './architecture.mjs';
 import {roomLayout} from './rooms.mjs';
 import {splitFace} from './face-order.mjs';
 export const NATIVE_ORIGIN={x:.165,z:-.1356};
@@ -30,8 +30,9 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
 
  const states=kind==='gate'?Array.from({length:9},(_,i)=>i===0?'Up':`Gate${i}`):collapse?['Up','Down']:['Up'],frames=[];let fw=1,fh=1;
  for(const state of states)for(let r=0;r<4;r++){
-  const polygons=faces?faces(r,state).map(f=>({...f,screen:f.vertices.map(v=>projectPoint(v,r,anchor))})):[];
-  const pts=polygons.flatMap(f=>f.screen),center=projectPoint([...anchor,0],r,anchor);if(floorImage)pts.push([center[0]-65,center[1]-33],[center[0]+65,center[1]+33]);
+  const clipPoints=clip?.map(v=>projectPoint(v,r,anchor));
+  const polygons=(faces?faces(r,state).map(f=>({...f,screen:f.vertices.map(v=>projectPoint(v,r,anchor))})):[]).filter(f=>!clipPoints||[0,1].every(axis=>Math.max(...f.screen.map(p=>p[axis]))>=Math.min(...clipPoints.map(p=>p[axis]))&&Math.min(...f.screen.map(p=>p[axis]))<=Math.max(...clipPoints.map(p=>p[axis]))));
+  const pts=clipPoints||polygons.flatMap(f=>f.screen),center=projectPoint([...anchor,0],r,anchor);if(floorImage)pts.push([center[0]-65,center[1]-33],[center[0]+65,center[1]+33]);
   const x0=Math.floor(Math.min(0,...pts.map(p=>p[0])))-2,y0=Math.floor(Math.min(0,...pts.map(p=>p[1])))-2;
   const w=Math.ceil(Math.max(0,...pts.map(p=>p[0])))-x0+2,h=Math.ceil(Math.max(0,...pts.map(p=>p[1])))-y0+2;fw=Math.max(fw,w);fh=Math.max(fh,h);
   frames.push({r,state,x0,y0,w,h,polygons,center});
@@ -99,7 +100,7 @@ for(const [li,l]of project.levels.entries()){
    const below=model.levelOf(project,well.lower.level);
    await sprite({id:`well_${serial++}`,anchor:[end.x,end.z],level:li,kind:'well',layer:'ground',clip:well.opening,faces:r=>{
     const w=geo.stairwell(project,s,r),faces=Object.entries(below.tiles).map(([k,t])=>{const [x,z]=k.split(',').map(Number);return{...(surfaceMaterial(t.material)?{attrs:{fill:surfaceMaterial(t.material).color,'data-texture':t.material,'data-floor-texture':true,'data-texture-basis':[[-.5,-.5],[1.5,-.5],[-.5,1.5]].map(p=>w.belowPoint(...p))}}:{}),color:kit.floorMaterials.find(m=>m.id===(t.material||'blank'))?.color||'#c1c5b8',vertices:[[x-.5,z-.5],[x+.5,z-.5],[x+.5,z+.5],[x-.5,z+.5]].map(p=>w.belowPoint(...p))};});
-    return [...faces,...orderFaces(w.faces,r)];
+    return [...faces,...orderFaces([...w.faces,...stairwellWallFaces(w,below,r)],r)];
    }});
   }
  }

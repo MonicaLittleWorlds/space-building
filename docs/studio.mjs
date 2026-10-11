@@ -2,7 +2,7 @@ import {shadeArchitecture,wallContactShadows,clipGroundShadows,surfaceLightMatri
 import {floorImagePath,surfaceMaterial,wallPattern} from './material-surfaces.mjs';
 import {installStylePickers,refreshStylePickers} from './style-picker.mjs';
 import {createNativePackage,browserRasterizer} from './native-export.mjs';
-import {wallFaces} from './architecture.mjs';
+import {wallFaces,stairwellWallFaces} from './architecture.mjs';
 import {drawBuilderAvatar,AVATAR_HEIGHT} from './avatar.mjs';
 import {requireCurrentVersion} from './version-gate.mjs';
 import {roomLayout,roomCutaway,cutProfile,roomWallOpacity} from './rooms.mjs';
@@ -112,6 +112,7 @@ function render({fast=false}={}){
     const origin=well.belowPoint(0,0),bx=well.belowPoint(1,0),bz=well.belowPoint(0,1),sx=[1,1,-1,-1][rotation],sz=[1,-1,-1,1][rotation];
     const lowerSX=Math.sign((bx[0]-origin[0])*sx+(bx[1]-origin[1])*sz),lowerSZ=Math.sign((bz[0]-origin[0])*sx+(bz[1]-origin[1])*sz);
     const lowerRotation=[0,1,2,3].find(r=>[1,1,-1,-1][r]===lowerSX&&[1,-1,-1,1][r]===lowerSZ);
+    faces.push(...stairwellWallFaces(well,below,rotation));
     for(const item of below.items)for(const face of itemFaces(item,lowerRotation))faces.push({vertices:face.vertices.map(p=>well.belowPoint(...p)),attrs:{fill:face.color,'data-kind':'item-below','pointer-events':'none'}});
     for(const face of orderFaces(faces,rotation))polygon(face.vertices,face.attrs);
     renderParent=null;
