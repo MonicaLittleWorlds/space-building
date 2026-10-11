@@ -10,7 +10,15 @@ export function modelFenceFaces(w,rotation,posts=[true,true]){
  function part(name,point){
   const o=point(0,0,0),u=point(1,0,0),v=point(0,1,0),sign=p=>Math.sign((p[0]-o[0])*camera[0]+(p[1]-o[1])*camera[1]);
   const r=directions.findIndex(d=>d[0]===sign(u)&&d[1]===sign(v));
-  const f=catalog[w.fenceStyle+'-'+name][r],vertices=f.vertices.map(p=>point(...p));
+  const f=catalog[w.fenceStyle+'-'+name][r];
+  // The image rectangle is camera-facing, not the physical fence surface.
+  // Move it along view rays onto that surface: pixels stay fixed, BSP depth does not.
+  const tangent=[u[0]-o[0],u[1]-o[1]],n=[-tangent[1],tangent[0]];
+  const denominator=n[0]*camera[0]+n[1]*camera[1];
+  const vertices=f.vertices.map(p=>{
+   const q=point(...p),distance=((o[0]-q[0])*n[0]+(o[1]-q[1])*n[1])/denominator;
+   return [q[0]+camera[0]*distance,q[1]+camera[1]*distance,q[2]+64*distance];
+  });
   return {part:name==='post'?'post-model':'model-leaf',vertices,color:'none',attrs:{fill:'none','data-sprite':f.image,'data-sprite-basis':[vertices[0],vertices[1],vertices[3]]}};
  }
  const result=[];
