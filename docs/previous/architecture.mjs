@@ -1,5 +1,5 @@
 import {surfaceMaterial} from './material-surfaces.mjs';
-import {KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
+import {meshBuilder,KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
 import {cutProfile} from './rooms.mjs';
 
 export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={back:false,fill:'#d3d7c9',opacity:1},cutSelection=new Set()}={}){
@@ -110,6 +110,8 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
       if(w.doorStyle!=='arch')moulding(L-.05,R+.05,top+1,top+8,trim,.04,'door-header');
 
       if(w.doorStyle==='craftsman'){
+        for(const [u,v] of [[-.076,-.062],[1.062,1.076]])moulding(u,v,20,top+3,tintColor(trim,.88),.052,'casing-flute');
+        moulding(-.11,1.11,top+19,top+22,tintColor(trim,1.07),.065,'casing-crown');
         panel(L-.065,L-.015,0,top+9,trim);panel(R+.015,R+.065,0,top+9,trim);
         panel(L-.09,R+.09,top+6,top+15,trim);panel(L-.105,R+.105,top+15,top+19,back?fill:'#f0e8d6');
         for(const u of [L-.065,R+.015]){panel(u,u+.05,0,18,reveal);panel(u+.009,u+.041,23,top-7,back?fill:'#c9c3b3');}
@@ -117,6 +119,22 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
         for(let i=0;i<7;i++)for(const [u,v] of [[L-.08,L],[R,R+.08]])panel(u,v,i*top/7+1,(i+1)*top/7-1,back?fill:i%2?'#bbb8a8':'#d4d0bd');
         panel(L-.09,R+.09,top,top+16,trim);
         for(let i=0;i<5;i++)panel(L+(R-L)*i/5+.004,L+(R-L)*(i+1)/5-.004,top+1,top+15,back?fill:i%2?'#bcb8a8':'#d4d0bd');
+      }
+
+      if(w.doorStyle==='craftsman'){
+        const normal=w.axis==='x'?[1,0]:[0,1],sign=wallFacing(w,level.tiles);
+        const leafPoint=(u,v,y)=>[a[0]+(b[0]-a[0])*u+normal[0]*v*sign,a[1]+(b[1]-a[1])*u+normal[1]*v*sign,y];
+        const pal={top:'#a47747',side:'#604026',end:'#805333'},leaf=meshBuilder(leafPoint,rotation,pal);
+        leaf.box(-.072,-.032,.015,.94,0,top-4,0,top-4,'door-leaf');
+        for(const side of [-1,1])for(const [lo,hi] of [[.08,.43],[.50,.86]])for(const [bottom,upper] of [[12,top*.28],[top*.34,top*.65],[top*.71,top-14]]){
+          const x=side<0?-.082:-.022;
+          leaf.box(x-.007,x+.007,lo,hi,bottom,upper,bottom,upper,'raised-door-panel');
+          for(const v of [lo-.008,hi])leaf.box(x-.012,x+.012,v,v+.015,bottom-2,upper+2,bottom-2,upper+2,'panel-bead');
+          for(const y of [bottom-2,upper])leaf.box(x-.012,x+.012,lo-.008,hi+.015,y,y+2,y,y+2,'panel-bead');
+        }
+        const brass={top:'#d0b36b',side:'#756034',end:'#ad8c45'};
+        leaf.box(-.10,-.085,.82,.85,top*.44,top*.51,top*.44,top*.51,'door-hardware',brass);
+        for(const f of leaf.faces)polygon(f.vertices,{...attrs,fill:f.color,'data-part':f.part,...(f.part==='raised-door-panel'?{'data-texture':'cc0-wood-cabinet-worn-long'}:{})});
       }
 
     }
@@ -147,6 +165,8 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
     moulding(L-.035,R+.035,T+4,T+10,frame,.045,'window-header');
     moulding(L-.045,R+.045,B-9,B-3,tintColor(frame,.93),.08,'sill-apron');
     if(w.windowStyle==='colonial'){
+      for(const [u,v] of [[L-.052,L-.037],[R+.037,R+.052]])moulding(u,v,B-12,T+12,tintColor(frame,.94),.055,'outer-window-bead');
+      moulding(L-.065,R+.065,T+10,T+14,tintColor(frame,1.05),.065,'window-cornice');
       moulding(L+.018,R-.018,(B+T)/2-3,(B+T)/2+3,frame,.025,'sash-rail');
       for(const u of [.44,.55])moulding(u,u+.025,(B+T)/2+4,(B+T)/2+7,'#8d825c',.035,'sash-lock');
     }

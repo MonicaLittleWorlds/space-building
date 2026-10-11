@@ -51,7 +51,7 @@ export function wallCornerFaces(corner,rotation=0){
 export function wallCapEnds(w,corners){const ends=wallEnds(w),t=KIT.wallThickness/2;return ends.map((p,i)=>{if(!corners.some(c=>c.x===p[0]&&c.z===p[1]))return p;const q=ends[1-i];return [p[0]+Math.sign(q[0]-p[0])*t,p[1]+Math.sign(q[1]-p[1])*t];});}
 export function visibleLevelObjects(project,id){const l=project.levels.find(l=>l.id===id);return l?{walls:Object.values(l.walls),items:l.items}: {walls:[],items:[]};}
 // Volumetric construction parts, authored directly in LW grid units.
-function meshBuilder(point,rotation,palette){
+export function meshBuilder(point,rotation,palette){
   const faces=[],sx=[1,1,-1,-1][rotation%4],sz=[1,-1,-1,1][rotation%4];
   const o=point(0,0,0),u=point(1,0,0),v=point(0,1,0);
   const visible=(axis,sign)=>((axis==='u'?u[0]-o[0]:v[0]-o[0])*sx+(axis==='u'?u[1]-o[1]:v[1]-o[1])*sz)*sign>0;
@@ -106,6 +106,7 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
     if(style==='metal')for(const u of [.1,.23,.36,.49,.62,.75,.88]){box(u,u+.022,-.018,.018,8,89,8,89,'baluster');for(const v of [-.019,.019])faces.push({part:'spear',color:palette.end,vertices:[point(u-.015,v,88),point(u+.037,v,88),point(u+.011,v,98)]});}
   }
   for(const [i,show] of posts.entries())if(show){const t=style==='metal'?.035:.06;box(i-t,i+t,-t,t,0,98,0,98,'post');box(i-t-.009,i+t+.009,-t-.009,t+.009,97,99,97,99,'post-cap');for(const [dx,dz,ex,ez] of [[-t,-t,t,-t],[t,-t,t,t],[t,t,-t,t],[-t,t,-t,-t]])faces.push({part:'post-cap',color:palette.top,vertices:[point(i+dx,dz,99),point(i+ex,ez,99),point(i,0,104)]});}
+  if(style==='picket')for(const [i,show] of posts.entries())if(show){box(i-.075,i+.075,-.075,.075,90,93,90,93,'post-collar');box(i-.085,i+.085,-.085,.085,96,99,96,99,'post-cornice');}
   const detail=(u,v,h,du,dh,color,part)=>faces.push({part,color,vertices:[point(u-du,v,h),point(u,v,h+dh),point(u+du,v,h),point(u,v,h-dh)]});
   if(style==='metal'){
     const dark={top:'#566361',side:'#26312f',end:'#3b4945'};
@@ -156,15 +157,17 @@ export function stairFaces(end,rotation=0){
   const width=end.width===1?1:2,sign=end.rise===1?1:-1,depth=end.depth||2;
   const point=(u,v,h)=>end.axis==='x'?[end.x-.5+u,end.z+sign*(.5+v),h]:[end.x+sign*(.5+v),end.z-.5+u,h];
   const metal=end.style==='iron',timber=['timber','open','classic','iron'].includes(end.style),open=['open','iron'].includes(end.style);
-  const palette=end.appearance?.bodyColor?tintedPalette(end.appearance.bodyColor):timber?{top:'#b29976',side:'#6c5640',end:'#8d7354'}:{top:'#d3d0c2',side:'#90958b',end:'#aeb2a6'};
-  const railPalette=end.appearance?.railColor?tintedPalette(end.appearance.railColor):metal?{top:'#71817c',side:'#303f3c',end:'#4b5d56'}:{top:'#8d7b61',side:'#4f493d',end:'#70624f'};
+  const crafted=end.style==='classic';
+  const palette=end.appearance?.bodyColor?tintedPalette(end.appearance.bodyColor):crafted?{top:'#b78650',side:'#67432b',end:'#95643c'}:timber?{top:'#b29976',side:'#6c5640',end:'#8d7354'}:{top:'#d3d0c2',side:'#90958b',end:'#aeb2a6'};
+  const painted=tintedPalette(end.appearance?.bodyColor||'#e7e2d6');
+  const railPalette=end.appearance?.railColor?tintedPalette(end.appearance.railColor):metal?{top:'#71817c',side:'#303f3c',end:'#4b5d56'}:crafted?tintedPalette('#75492d'):{top:'#8d7b61',side:'#4f493d',end:'#70624f'};
   const {faces,box}=meshBuilder(point,rotation,palette),count=12,totalHeight=KIT.wallHeight,rise=totalHeight/count,run=depth/count;
   for(let i=0;i<count;i++){
     const h=(i+1)*rise,a=i*run,b=(i+1)*run;
     // Solid risers or visibly separated thick treads on sloped stringers.
-    box(.05,width-.05,a,b,open?h-7:timber?Math.max(0,i*rise-6):0,h-4,open?h-7:timber?Math.max(0,i*rise-6):0,h-4,'step');
+    box(.05,width-.05,a,b,open?h-7:timber?Math.max(0,i*rise-6):0,h-4,open?h-7:timber?Math.max(0,i*rise-6):0,h-4,'step',crafted?painted:palette);
     box(.035,width-.035,Math.max(0,a-.025),b,h-4,h,h-4,h,'tread');
-    if(!open)box(.085,width-.085,a-.006,a+.006,h-rise+5,h-8,h-rise+5,h-8,'recessed-riser',{top:palette.top,side:palette.side,end:tintColor(palette.end,.91)});
+    if(!open)box(.085,width-.085,a-.006,a+.006,h-rise+5,h-8,h-rise+5,h-8,'recessed-riser',crafted?painted:{top:palette.top,side:palette.side,end:tintColor(palette.end,.91)});
     box(.04,width-.04,Math.max(0,a-.03),Math.max(.006,a-.018),h-3,h-1,h-3,h-1,'rounded-nosing',{top:tintColor(palette.top,1.08),side:palette.side,end:palette.end});
     if(timber){
       for(let grain=0;grain<3;grain++){
@@ -179,18 +182,20 @@ export function stairFaces(end,rotation=0){
   if(timber&&!open)box(.09,width-.09,0,depth,0,10,totalHeight-rise-10,totalHeight-rise,'underside');
   if(timber){
     for(const u of [.09,width-.09]){
-      box(u-.04,u+.04,0,depth,0,18,totalHeight-27,totalHeight-12,'stringer',railPalette);
+      box(u-.04,u+.04,0,depth,0,18,totalHeight-27,totalHeight-12,'stringer',crafted?painted:railPalette);
       for(let i=0;i<=count;i+=end.style==='classic'?1:2){const v=Math.min(depth-.05,i*run+.04),h=Math.min(totalHeight,(i+1)*rise);if(end.style==='classic'){
         const profile=[[0,.025],[8,.025],[13,.036],[18,.02],[25,.016],[31,.03],[36,.02],[43,.025]];
         for(let p=1;p<profile.length;p++)for(let side=0;side<8;side++){
           const [lo,r0]=profile[p-1],[hi,r1]=profile[p],a=side*Math.PI/4,b=(side+1)*Math.PI/4;
-          faces.push({part:'turned-baluster',color:tintColor(railPalette.end,.8+side*.055),vertices:[[a,r0,lo],[b,r0,lo],[b,r1,hi],[a,r1,hi]].map(([angle,rise,y])=>point(u+Math.cos(angle)*rise,v+Math.sin(angle)*rise,h+y))});
+          faces.push({part:'turned-baluster',color:tintColor(painted.end,.75+Math.sin(side*Math.PI/4)*.12),vertices:[[a,r0,lo],[b,r0,lo],[b,r1,hi],[a,r1,hi]].map(([angle,rise,y])=>point(u+Math.cos(angle)*rise,v+Math.sin(angle)*rise,h+y))});
         }
-      }else box(u-.025,u+.025,v-.025,v+.025,h,h+43,h,h+43,'baluster',railPalette);if(end.style==='classic'){box(u-.038,u+.038,v-.038,v+.038,h+10,h+15,h+10,h+15,'baluster-collar',railPalette);box(u-.033,u+.033,v-.033,v+.033,h+30,h+34,h+30,h+34,'baluster-collar',railPalette);}}
+      }else box(u-.025,u+.025,v-.025,v+.025,h,h+43,h,h+43,'baluster',railPalette);if(end.style==='classic'){box(u-.038,u+.038,v-.038,v+.038,h+10,h+15,h+10,h+15,'baluster-collar',painted);box(u-.033,u+.033,v-.033,v+.033,h+30,h+34,h+30,h+34,'baluster-collar',painted);}}
       box(u-.068,u+.068,-.045,.07,0,rise+47,0,rise+47,'newel-post',railPalette);box(u-.085,u+.085,-.06,.085,rise+44,rise+49,rise+44,rise+49,'newel-cap',railPalette);
+      if(crafted)for(const [y,d,h] of [[5,.09,5],[rise+32,.075,3],[rise+40,.085,3]])box(u-d,u+d,-d,d,y,y+h,y,y+h,'newel-molding',railPalette);
       box(u-.045,u+.045,0,depth,rise+39,rise+45,totalHeight+39,totalHeight+45,'handrail',railPalette);
     }
   }
+  if(crafted&&!end.appearance?.bodyColor)for(const f of faces)if(f.part==='tread'&&f.vertices.every(v=>v[2]===f.vertices[0][2]))f.attrs={fill:f.color,'data-texture':'cc0-wood-cabinet-worn-long'};
   // The landing reaches the floor above; only railing geometry is clipped.
   return faces.map(face=>{const vertices=[];for(let i=0;i<face.vertices.length;i++){
     const a=face.vertices[i],b=face.vertices[(i+1)%face.vertices.length],inside=a[2]<=KIT.wallHeight;

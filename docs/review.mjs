@@ -36,3 +36,14 @@ export function craftedReview(){
  for(const e of [p.stairs[0].a,p.stairs[0].b])Object.assign(e,{x:6,z:5,width:1,depth:4,rise:-1,style:'classic'});
  return p;
 }
+
+export function modelFenceReview(){
+ const p=blankProject(),l=p.levels[0];p.name='Natural timber and heritage iron fence + gate trial';
+ for(let x=-2;x<=9;x++)for(let z=-2;z<=6;z++)l.tiles[key(x,z)]={walk:true,place:true,material:'grass'};
+ for(const [i,fenceStyle]of ['natural-picket','heritage-iron'].entries()){
+  const start=i*5;
+  for(let x=start;x<start+4;x++)for(const z of [0,4]){const w={x,z,axis:'z',kind:'fence',fenceStyle,gate:z===4&&x===start+1,collapse:false,mount:false};l.walls[edgeKey(w)]=w;}
+  for(let z=0;z<4;z++)for(const x of [start,start+4]){const w={x,z,axis:'x',kind:'fence',fenceStyle,collapse:false,mount:false};l.walls[edgeKey(w)]=w;}
+ }
+ p.spawn={level:l.id,x:1,z:5};return p;
+}

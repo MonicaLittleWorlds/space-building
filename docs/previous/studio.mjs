@@ -15,12 +15,12 @@ import {key,nodeKey,edgeKey,levelOf,blankProject,demoProject,triggerCells,rotate
 import kit from './kit.mjs';
 import {KIT,fenceShadowFaces,wallUsesBackShadow,wallFacing,wallSurfaceEnds,wallEndVisible,stairLevels,stairwell,itemFaces,fencePostOwners,tintColor,stairArrow,fenceFaces,windowLayout,brushCells,wallEnds,wallSide,wallEndExposed,wallRenderHeight,wallCorners,wallCornerFaces,wallCapEnds,visibleLevelObjects,stairFaces} from './geometry.mjs';
 import {toggleDecorSelection,decorHighlight,assignDecorSafely,createDecorGroup,deleteDecorGroup,ensureDecor,decorField,decorGroupsFor,decorManifest,assignDecor,decorPieces,applyPieceDecor} from './decor.mjs';
-import {joinReview,stairReview,doorReview,roomReview,fenceReview,materialReview} from './review.mjs';
+import {craftedReview,joinReview,stairReview,doorReview,roomReview,fenceReview,materialReview} from './review.mjs';
 const versionGate=await requireCurrentVersion();
 await requireUniversalCode({checkUpdates:versionGate.check});
 const $=id=>document.getElementById(id), svg=$('canvas'), NS='http://www.w3.org/2000/svg';
 let project=blankProject(), savedMessage='One empty floor, ready to build. Your edits autosave locally.';
-const reviewType=new URLSearchParams(location.search).get('review'),reviewMode=['joins','stairs','doors','rooms','fences','materials'].includes(reviewType);
+const reviewType=new URLSearchParams(location.search).get('review'),reviewMode=['crafted','joins','stairs','doors','rooms','fences','materials'].includes(reviewType);
 let library=null;
 if(!reviewMode)try{
  library=new ProjectLibrary(localStorage,sessionStorage,navigator.locks);
@@ -28,7 +28,7 @@ if(!reviewMode)try{
  const opened=await library.start(project,recovery);project=opened.project;sessionStorage.removeItem('lw-update-recovery');savedMessage=opened.copied?'Opened a separate tab copy.':'Your independent project session is ready.';
 }catch{library=null;savedMessage='Local storage unavailable. Save project files to keep your work.';}
 
-if(reviewMode){project=reviewType==='materials'?materialReview():reviewType==='fences'?fenceReview():reviewType==='rooms'?roomReview():reviewType==='stairs'?stairReview():reviewType==='doors'?doorReview():joinReview();savedMessage='Review sample · your draft is unchanged.';}
+if(reviewMode){project=reviewType==='crafted'?craftedReview():reviewType==='materials'?materialReview():reviewType==='fences'?fenceReview():reviewType==='rooms'?roomReview():reviewType==='stairs'?stairReview():reviewType==='doors'?doorReview():joinReview();savedMessage='Review sample · your draft is unchanged.';}
 ensureDecor(project);
 let active=project.levels[0].id,rotation=0,tool='floor',pending=null,playing=false,avatar=null,undo=[],redo=[],drag=false,painted=new Set(),timer=null,pan={x:0,y:0},panStart=null,panMode=false;
 let issueFocus=null;
@@ -103,7 +103,7 @@ function render({fast=false}={}){
       const fill=kit.floorMaterials.find(m=>m.id===t.material)?.color||'#c1c7b7';
       polygon(vertices,{fill,stroke:fill,'stroke-width':.5,'data-kind':'floor-below','pointer-events':'none',...(surfaceMaterial(t.material)?{'data-texture':t.material,'data-floor-texture':true,'data-texture-basis':[[-.5,-.5],[1.5,-.5],[-.5,1.5]].map(p=>well.belowPoint(...p))}:{})});
     }
-    const faces=well.faces.map(f=>({...f,attrs:{fill:f.color,stroke:f.color,'stroke-width':.25,'data-kind':'stairs-down','data-part':f.part,'pointer-events':'none'}}));
+    const faces=well.faces.map(f=>({...f,attrs:{fill:f.color,stroke:f.color,'stroke-width':.25,'data-kind':'stairs-down','data-part':f.part,'pointer-events':'none',...f.attrs}}));
     const origin=well.belowPoint(0,0),bx=well.belowPoint(1,0),bz=well.belowPoint(0,1),sx=[1,1,-1,-1][rotation],sz=[1,-1,-1,1][rotation];
     const lowerSX=Math.sign((bx[0]-origin[0])*sx+(bx[1]-origin[1])*sz),lowerSZ=Math.sign((bz[0]-origin[0])*sx+(bz[1]-origin[1])*sz);
     const lowerRotation=[0,1,2,3].find(r=>[1,1,-1,-1][r]===lowerSX&&[1,-1,-1,1][r]===lowerSZ);
@@ -124,7 +124,7 @@ function render({fast=false}={}){
   faceQueue=[];
   for(const w of visible.walls.filter(w=>w.kind!=='fence'&&onScreen(w.x,w.z,KIT.wallHeight)))drawWall(w,joins);
   for(const corner of joins)if(onScreen(corner.x,corner.z,corner.height))drawCorner(corner);
-  const mesh=(faces,attrs)=>{for(const face of faces)polygon(face.vertices,{fill:face.color,stroke:face.color,'stroke-width':.25,'pointer-events':'none','data-part':face.part,...attrs});};
+  const mesh=(faces,attrs)=>{for(const face of faces)polygon(face.vertices,{fill:face.color,stroke:face.color,'stroke-width':.25,'pointer-events':'none','data-part':face.part,...attrs,...face.attrs});};
   for(const w of visible.walls.filter(w=>w.kind==='fence'&&onScreen(w.x,w.z,KIT.fenceHeight))){
     const posts=fencePostOwners(w,visible.walls);
     mesh(fenceFaces({...w,gateOpen:!!(w.gate&&playing&&avatar?.level===active&&Math.hypot(avatar.x-w.x,avatar.z-w.z)<1.8)},rotation,posts),{'data-kind':'fence','data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-level':active,'data-fence-style':w.fenceStyle,'data-gate':!!w.gate,...($('overlay').value==='decor'&&$('decor-kind').value==='wall'&&decorColor(w[decorField('wall',$('decor-area').value)])?{fill:decorColor(w[decorField('wall',$('decor-area').value)]),stroke:decorColor(w[decorField('wall',$('decor-area').value)])}:{})});
@@ -208,7 +208,7 @@ function drawPlacementPreview(){
  const oldParent=renderParent;previewDrawing=true;
  renderParent=element('g',{id:'placement-preview',opacity:.48,'pointer-events':'none','data-tool':tool,'data-valid':!invalid,'aria-hidden':'true'});
  const footprint=c=>tile(c.x,c.z,invalid?'#be4141':'#83d9b3',border,{'fill-opacity':.2,'stroke-width':2,'pointer-events':'none'});
- const mesh=faces=>{for(const f of orderFaces(faces,rotation))polygon(f.vertices,{fill:f.color,stroke:f.color,'stroke-width':.3,'pointer-events':'none','data-part':f.part});};
+ const mesh=faces=>{for(const f of orderFaces(faces,rotation))polygon(f.vertices,{fill:f.color,stroke:f.color,'stroke-width':.3,'pointer-events':'none','data-part':f.part,...f.attrs});};
  try{
   if(tool==='floor'){
    const cells=brushCells(x,z,+$('floor-size').value),size=+$('floor-size').value,c=cells[0],center=projection(c.x+(size-1)/2,c.z+(size-1)/2),s=scale();

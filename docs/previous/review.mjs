@@ -22,3 +22,17 @@ export function materialReview(){
  for(const w of Object.values(l.walls)){w.material=w.axis==='x'?(w.x===3?'panel':'stone'):'brick';w.exteriorMaterial=w.material;if(w.kind==='window')w.windowStyle='colonial';if(w.kind==='door')w.doorStyle='craftsman';}
  return p;
 }
+
+export function craftedReview(){
+ const p=ensureDecor(demoProject());p.name='Crafted architecture preview';
+ for(const l of p.levels){
+  for(const t of Object.values(l.tiles))t.material='cc0-woodfloor051';
+  delete l.walls['x:4,3'];
+  for(const w of Object.values(l.walls))w.material='blank';
+  for(const x of [1,5])l.walls['z:'+x+',0']={axis:'z',x,z:0,kind:'window',windowStyle:'colonial',collapse:true,mount:false,material:'blank'};
+  l.walls['x:0,3']={axis:'x',x:0,z:3,kind:'door',doorStyle:'craftsman',collapse:true,mount:false,material:'blank'};
+  for(let x=0;x<8;x++)l.walls['z:'+x+',7']={axis:'z',x,z:7,kind:'fence',fenceStyle:x<4?'picket':'metal',collapse:false,mount:false};
+ }
+ for(const e of [p.stairs[0].a,p.stairs[0].b])Object.assign(e,{x:6,z:5,width:1,depth:4,rise:-1,style:'classic'});
+ return p;
+}
