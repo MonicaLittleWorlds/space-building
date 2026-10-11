@@ -1,3 +1,4 @@
+import {surfaceLightMatrix} from './room-shading.mjs';
 import kit from './kit.mjs';
 export const surfaceMaterial=id=>kit.wallMaterials.find(m=>m.id===id&&m.texture);
 export function floorImagePath(id,x=0,z=0,rotation=0,size=1){
@@ -15,4 +16,4 @@ export function wallPattern(vertices,project,basis){
  const a=point(-.5,256),b=point(1.5,256),c=point(-.5,0);
  return [b[0]-a[0],b[1]-a[1],c[0]-a[0],c[1]-a[1],...a];
 }
-export function wallPatternSVG(id,matrix,href){return `<pattern id="${id}" patternUnits="userSpaceOnUse" width="1" height="1" patternTransform="matrix(${matrix.join(' ')})"><image href="${href}" width="1" height="1" preserveAspectRatio="none"/></pattern>`;}
+export function wallPatternSVG(id,matrix,href,tint,contrast,light=1){return `<filter id="${id}-light" color-interpolation-filters="sRGB"><feColorMatrix values="${surfaceLightMatrix(light)}"/></filter><pattern id="${id}" patternUnits="userSpaceOnUse" width="1" height="1" patternTransform="matrix(${matrix.join(' ')})"><image filter="url(#${id}-light)" href="${href}" width="1" height="1" preserveAspectRatio="none"/></pattern>`;}

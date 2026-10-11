@@ -310,10 +310,23 @@ export function stairwell(project,stair,rotation=0){
 
 // Contact shadows stay on their floor and never contribute navigation geometry.
 export function fenceShadowFaces(w,posts=[true,true]){
- const [a,b]=wallEnds(w),faces=[],normal=w.axis==='x'?[1,0]:[0,1];
- const strip=(p,q,width,opacity)=>faces.push({part:'contact-shadow',vertices:[[p[0]-normal[0]*width,p[1]-normal[1]*width,.02],[q[0]-normal[0]*width,q[1]-normal[1]*width,.02],[q[0]+normal[0]*width,q[1]+normal[1]*width,.02],[p[0]+normal[0]*width,p[1]+normal[1]*width,.02]],color:'#203b30',attrs:{fill:'#203b30',opacity,stroke:'none','pointer-events':'none'}});
- if(!w.gate)for(const [width,opacity]of [[.16,.045],[.11,.06],[.065,.08]])strip(a,b,width,opacity);
- for(const [i,p]of [a,b].entries())if(posts[i])for(const [radius,opacity]of [[.14,.06],[.10,.09],[.065,.12]])faces.push({part:'post-shadow',vertices:Array.from({length:12},(_,j)=>[p[0]+Math.cos(j*Math.PI/6)*radius,p[1]+Math.sin(j*Math.PI/6)*radius,.03]),color:'#203b30',attrs:{fill:'#203b30',opacity,stroke:'none','pointer-events':'none'}});
- if(w.gate&&w.gateOpen){const end=[a[0]+normal[0]*.76,a[1]+normal[1]*.76];for(const [width,opacity]of [[.09,.05],[.05,.07]]){const dx=end[0]-a[0],dz=end[1]-a[1];faces.push({part:'gate-shadow',vertices:[[a[0]-dz*width,a[1]+dx*width,.03],[end[0]-dz*width,end[1]+dx*width,.03],[end[0]+dz*width,end[1]-dx*width,.03],[a[0]+dz*width,a[1]-dx*width,.03]],attrs:{fill:'#203b30',opacity,stroke:'none'}});}}
+ const [a,b]=wallEnds(w),faces=[],normal=w.axis==='x'?[1,0]:[0,1],tangent=[b[0]-a[0],b[1]-a[1]];
+ const density={rail:.42,metal:.38,'heritage-iron':.38,picket:.62,'natural-picket':.62,lattice:.60,slat:.8,privacy:1}[w.fenceStyle]??.6;
+ const strip=(p,q,width,opacity,part)=>{
+  const dx=q[0]-p[0],dz=q[1]-p[1],length=Math.hypot(dx,dz),nx=-dz/length*width,nz=dx/length*width;
+  faces.push({part,vertices:[[p[0]-nx,p[1]-nz,.02],[q[0]-nx,q[1]-nz,.02],[q[0]+nx,q[1]+nz,.02],[p[0]+nx,p[1]+nz,.02]],attrs:{fill:'#202822',opacity,stroke:'none','pointer-events':'none'}});
+ };
+ let start=a,end=b;
+ if(w.gate){
+  const progress=Number.isFinite(w.gateProgress)?Math.max(0,Math.min(1,w.gateProgress)):w.gateOpen?1:0,angle=progress*Math.PI/2;
+  start=a.map((n,i)=>n+tangent[i]*.12);
+  end=start.map((n,i)=>n+.76*(tangent[i]*Math.cos(angle)+normal[i]*Math.sin(angle)));
+ }
+ // Identical falloff along the entire run; adjacent panels meet without end blobs.
+ for(let band=0;band<8;band++)strip(start,end,.035+(8-band)*.022,(.011+band*.0015)*density,w.gate?'gate-shadow':'contact-shadow');
+ for(const [i,p]of [a,b].entries())if(posts[i])for(let band=0;band<6;band++){
+  const radius=.045+(6-band)*.018;
+  faces.push({part:'post-shadow',vertices:Array.from({length:16},(_,j)=>[p[0]+Math.cos(j*Math.PI/8)*radius,p[1]+Math.sin(j*Math.PI/8)*radius,.03]),attrs:{fill:'#202822',opacity:.024+band*.003,stroke:'none','pointer-events':'none'}});
+ }
  return faces;
 }
