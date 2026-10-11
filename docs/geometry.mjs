@@ -1,3 +1,4 @@
+import {shadeArchitecture} from './room-shading.mjs';
 import {isModelFence,modelFenceFaces} from './fence-models.mjs';
 // Original LW kit dimensions expressed in the game's logical grid.
 export const KIT={halfWidth:64,halfHeight:32,wallHeight:3.5*Math.sqrt(2*64**2)*Math.cos(Math.PI/6),wallThickness:.12,fenceHeight:92};
@@ -56,23 +57,36 @@ export function meshBuilder(point,rotation,palette){
   const faces=[],sx=[1,1,-1,-1][rotation%4],sz=[1,-1,-1,1][rotation%4];
   const o=point(0,0,0),u=point(1,0,0),v=point(0,1,0);
   const visible=(axis,sign)=>((axis==='u'?u[0]-o[0]:v[0]-o[0])*sx+(axis==='u'?u[1]-o[1]:v[1]-o[1])*sz)*sign>0;
-  const face=(vertices,color,part)=>faces.push({vertices:vertices.map(p=>point(...p)),color,part});
+  const face=(vertices,color,part,lightingBase)=>faces.push({vertices:vertices.map(p=>point(...p)),color,part,...(lightingBase?{lightingBase}:{})});
   const box=(u0,u1,v0,v1,b0,t0,b1=b0,t1=t0,part='body',colors=palette)=>{
-    if(visible('u',-1))face([[u0,v0,b0],[u0,v1,b1],[u0,v1,t1],[u0,v0,t0]],colors.side,part);
-    if(visible('u',1))face([[u1,v0,b0],[u1,v1,b1],[u1,v1,t1],[u1,v0,t0]],colors.side,part);
-    if(visible('v',-1))face([[u0,v0,b0],[u1,v0,b0],[u1,v0,t0],[u0,v0,t0]],colors.end,part);
-    if(visible('v',1))face([[u0,v1,b1],[u1,v1,b1],[u1,v1,t1],[u0,v1,t1]],colors.end,part);
+    if(visible('u',-1))face([[u0,v0,b0],[u0,v1,b1],[u0,v1,t1],[u0,v0,t0]],colors.side,part,colors.end);
+    if(visible('u',1))face([[u1,v0,b0],[u1,v1,b1],[u1,v1,t1],[u1,v0,t0]],colors.side,part,colors.end);
+    if(visible('v',-1))face([[u0,v0,b0],[u1,v0,b0],[u1,v0,t0],[u0,v0,t0]],colors.end,part,colors.end);
+    if(visible('v',1))face([[u0,v1,b1],[u1,v1,b1],[u1,v1,t1],[u0,v1,t1]],colors.end,part,colors.end);
     face([[u0,v0,t0],[u1,v0,t0],[u1,v1,t1],[u0,v1,t1]],colors.top,part);
   };
   return {faces,box};
 }
 export function fenceFaces(w,rotation=0,posts=[true,true]){
- if(posts.insets)return fitFenceConnection(fenceFaces(w,rotation,Array.from(posts)),w,posts);
+ // Replace the old fixed side palette with the same directional light used by walls.
+ // Material variation stays intact; highlights and ground shadows are not shaded twice.
+ return shadeArchitecture(unlitFenceFaces(w,rotation,posts).map(f=>{
+  if(f.attrs?.['data-sprite']){
+   const progress=w.gate&&!f.part.startsWith('post')?(Number.isFinite(w.gateProgress)?Math.max(0,Math.min(1,w.gateProgress)):w.gateOpen?1:0):0;
+   const xWeight=w.axis==='x'?Math.cos(progress*Math.PI/2)**2:Math.sin(progress*Math.PI/2)**2;
+   const light=.84+.105*(rotation%2===0?xWeight:1-xWeight);
+   return {...f,attrs:{...f.attrs,'data-surface-light':light}};
+  }
+  return f.lightingBase?{...f,color:f.lightingBase}:f;
+ }),rotation);
+}
+function unlitFenceFaces(w,rotation=0,posts=[true,true]){
+ if(posts.insets)return fitFenceConnection(unlitFenceFaces(w,rotation,Array.from(posts)),w,posts);
   if(isModelFence(w.fenceStyle))return modelFenceFaces(w,rotation,posts);
   if(w.gate){
     const [a,b]=wallEnds(w),du=[b[0]-a[0],b[1]-a[1]],normal=w.axis==='x'?[1,0]:[0,1];
-    const all=fenceFaces({...w,gate:false},rotation,posts),postFaces=all.filter(f=>f.part.startsWith('post'));
-    const leaf=fenceFaces({...w,gate:false},w.gateOpen?(rotation+1)%4:rotation,[false,false]).map(f=>({...f,part:'gate-'+f.part,vertices:f.vertices.map(([x,z,h])=>{
+    const all=unlitFenceFaces({...w,gate:false},rotation,posts),postFaces=all.filter(f=>f.part.startsWith('post'));
+    const leaf=unlitFenceFaces({...w,gate:false},w.gateOpen?(rotation+1)%4:rotation,[false,false]).map(f=>({...f,part:'gate-'+f.part,vertices:f.vertices.map(([x,z,h])=>{
       const u=(x-a[0])*du[0]+(z-a[1])*du[1],v=(x-a[0])*normal[0]+(z-a[1])*normal[1];
       const length=.76*u;if(Number.isFinite(w.gateProgress)){const angle=Math.max(0,Math.min(1,w.gateProgress))*Math.PI/2,c=Math.cos(angle),s=Math.sin(angle),pu=.12+length*c-v*s,pv=length*s+v*c;return[a[0]+du[0]*pu+normal[0]*pv,a[1]+du[1]*pu+normal[1]*pv,h+3];}return w.gateOpen?[a[0]+du[0]*(.12-v)+normal[0]*length,a[1]+du[1]*(.12-v)+normal[1]*length,h+3]:[a[0]+du[0]*(.12+length)+normal[0]*v,a[1]+du[1]*(.12+length)+normal[1]*v,h+3];
     })}));
