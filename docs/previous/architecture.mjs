@@ -152,8 +152,8 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
     panel(L-.025,R+.025,T-5,T+5,frame);panel(L-.035,R+.035,B-6,B+4,frame);
     if(divided){if(w.windowStyle!=='colonial')panel(.485,.515,B+4,T-4,frame);panel(L,R,(B+T)/2-2,(B+T)/2+2,frame);}
     // Recessed inner beads and a separate outer casing give the frame depth.
-    panel(L+.032,L+.045,B+5,T-5,back?fill:'#9aab9f');panel(R-.045,R-.032,B+5,T-5,back?fill:'#f5eedf');
-    panel(L-.035,R+.035,T+5,T+9,back?fill:'#f4eddd');panel(L-.04,R+.04,B-10,B-6,back?fill:'#a4a898');
+    panel(L+.032,L+.045,B+5,T-5,tintColor(frame,.72));panel(R-.045,R-.032,B+5,T-5,tintColor(frame,1.09));
+    panel(L-.035,R+.035,T+5,T+9,tintColor(frame,1.06));panel(L-.04,R+.04,B-10,B-6,tintColor(frame,.78));
     if(w.windowStyle==='colonial')for(const u of [L+(R-L)/3,L+2*(R-L)/3])panel(u-.009,u+.009,B+4,T-4,frame);
     if(w.windowStyle==='casement'){
       panel(.487,.513,B+4,T-4,frame);
@@ -164,6 +164,14 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
     for(const [u,v] of [[L-.027,L+.003],[R-.003,R+.027]])moulding(u,v,B-4,T+5,frame,.035,'window-casing');
     moulding(L-.035,R+.035,T+4,T+10,frame,.045,'window-header');
     moulding(L-.045,R+.045,B-9,B-3,tintColor(frame,.93),.08,'sill-apron');
+    if(w.windowStyle!=='colonial'){
+      for(const [u,v] of [[L-.049,L-.029],[R+.029,R+.049]])moulding(u,v,B-10,T+10,tintColor(frame,.94),.055,'window-outer-casing');
+      moulding(L-.058,R+.058,T+9,T+13,tintColor(frame,1.04),.065,'window-drip-cap');
+      for(const [u,v] of [[L+.036,L+.052],[R-.052,R-.036]])moulding(u,v,B+4,T-4,tintColor(frame,.77),.014,'recessed-glazing-bead');
+      if(w.windowStyle==='divided')moulding(L+.04,R-.04,(B+T)/2-2,(B+T)/2+2,frame,.04,'meeting-rail');
+      if(w.windowStyle==='casement')for(const u of [.459,.533])moulding(u,u+.015,(B+T)/2-5,(B+T)/2+5,'#968052',.065,'casement-handle');
+      if(w.windowStyle==='high')for(const u of [L+.06,R-.08])moulding(u,u+.022,T-8,T-3,tintColor(frame,.60),.045,'transom-hinge');
+    }
     if(w.windowStyle==='colonial'){
       for(const [u,v] of [[L-.052,L-.037],[R+.037,R+.052]])moulding(u,v,B-12,T+12,tintColor(frame,.94),.055,'outer-window-bead');
       moulding(L-.065,R+.065,T+10,T+14,tintColor(frame,1.05),.065,'window-cornice');

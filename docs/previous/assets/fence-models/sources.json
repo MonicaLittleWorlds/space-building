@@ -1,0 +1,13 @@
+{
+  "heritage-iron": {
+    "source": "https://polyhaven.com/a/large_iron_gate",
+    "author": "Josh Dean",
+    "license": "CC0-1.0",
+    "changes": "Single leaf adapted to one grid edge, derived straight-topped fence, matching posts"
+  },
+  "natural-picket": {
+    "geometry": "Original authored pickets, rails, posts and braced gate",
+    "texture": "https://polyhaven.com/a/wood_cabinet_worn_long",
+    "license": "CC0-1.0"
+  }
+}

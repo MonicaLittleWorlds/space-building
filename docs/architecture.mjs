@@ -1,3 +1,4 @@
+import {shadeArchitecture} from './room-shading.mjs';
 import {surfaceMaterial} from './material-surfaces.mjs';
 import {meshBuilder,KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
 import {cutProfile} from './rooms.mjs';
@@ -189,5 +190,5 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
   polygon([[capA[0]-offset[0],capA[1]-offset[1],h],[capB[0]-offset[0],capB[1]-offset[1],h],[capB[0]+offset[0],capB[1]+offset[1],h],[capA[0]+offset[0],capA[1]+offset[1],h]],{fill:tintColor(fill,1.10),...attrs,'data-part':'cap'});
   for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,level.walls))polygon(quad(p,p,w.kind==='door'?h*(w.doorStyle==='wide'?.88:w.doorStyle==='arch'?.83:.78):0,h),{fill:tintColor(fill,.70),...attrs,'data-part':'end'});
 }
- draw(w,corners);return faces;
+ draw(w,corners);return shadeArchitecture(faces,rotation);
 }

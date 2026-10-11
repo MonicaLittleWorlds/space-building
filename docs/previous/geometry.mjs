@@ -1,3 +1,4 @@
+import {isModelFence,modelFenceFaces} from './fence-models.mjs';
 // Original LW kit dimensions expressed in the game's logical grid.
 export const KIT={halfWidth:64,halfHeight:32,wallHeight:3.5*Math.sqrt(2*64**2)*Math.cos(Math.PI/6),wallThickness:.12,fenceHeight:92};
 export const MATERIALS=['blank','grass','pavement','stone'];
@@ -66,12 +67,13 @@ export function meshBuilder(point,rotation,palette){
   return {faces,box};
 }
 export function fenceFaces(w,rotation=0,posts=[true,true]){
+  if(isModelFence(w.fenceStyle))return modelFenceFaces(w,rotation,posts);
   if(w.gate){
     const [a,b]=wallEnds(w),du=[b[0]-a[0],b[1]-a[1]],normal=w.axis==='x'?[1,0]:[0,1];
     const all=fenceFaces({...w,gate:false},rotation,posts),postFaces=all.filter(f=>f.part.startsWith('post'));
     const leaf=fenceFaces({...w,gate:false},w.gateOpen?(rotation+1)%4:rotation,[false,false]).map(f=>({...f,part:'gate-'+f.part,vertices:f.vertices.map(([x,z,h])=>{
       const u=(x-a[0])*du[0]+(z-a[1])*du[1],v=(x-a[0])*normal[0]+(z-a[1])*normal[1];
-      const length=.76*u;return w.gateOpen?[a[0]+du[0]*(.12-v)+normal[0]*length,a[1]+du[1]*(.12-v)+normal[1]*length,h+3]:[a[0]+du[0]*(.12+length)+normal[0]*v,a[1]+du[1]*(.12+length)+normal[1]*v,h+3];
+      const length=.76*u;if(Number.isFinite(w.gateProgress)){const angle=Math.max(0,Math.min(1,w.gateProgress))*Math.PI/2,c=Math.cos(angle),s=Math.sin(angle),pu=.12+length*c-v*s,pv=length*s+v*c;return[a[0]+du[0]*pu+normal[0]*pv,a[1]+du[1]*pu+normal[1]*pv,h+3];}return w.gateOpen?[a[0]+du[0]*(.12-v)+normal[0]*length,a[1]+du[1]*(.12-v)+normal[1]*length,h+3]:[a[0]+du[0]*(.12+length)+normal[0]*v,a[1]+du[1]*(.12+length)+normal[1]*v,h+3];
     })}));
     const hardware=meshBuilder((u,v,h)=>[a[0]+du[0]*u+normal[0]*v,a[1]+du[1]*u+normal[1]*v,h],rotation,{top:'#819087',side:'#38483f',end:'#58665b'});
     for(const h of [24,72])hardware.box(.045,.16,-.055,.055,h-3,h+3,h-3,h+3,'gate-hinge');
@@ -107,6 +109,45 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
   }
   for(const [i,show] of posts.entries())if(show){const t=style==='metal'?.035:.06;box(i-t,i+t,-t,t,0,98,0,98,'post');box(i-t-.009,i+t+.009,-t-.009,t+.009,97,99,97,99,'post-cap');for(const [dx,dz,ex,ez] of [[-t,-t,t,-t],[t,-t,t,t],[t,t,-t,t],[-t,t,-t,-t]])faces.push({part:'post-cap',color:palette.top,vertices:[point(i+dx,dz,99),point(i+ex,ez,99),point(i,0,104)]});}
   if(style==='picket')for(const [i,show] of posts.entries())if(show){box(i-.075,i+.075,-.075,.075,90,93,90,93,'post-collar');box(i-.085,i+.085,-.085,.085,96,99,96,99,'post-cornice');}
+  if(['rail','privacy','slat','lattice'].includes(style)){
+    for(const [i,show] of posts.entries())if(show){
+      box(i-.078,i+.078,-.078,.078,91,94,91,94,'post-cap-collar',tintedPalette(tintColor(palette.end,1.08)));
+      box(i-.088,i+.088,-.088,.088,96,99,96,99,'post-projecting-cap',tintedPalette(tintColor(palette.end,1.14)));
+    }
+    if(['privacy','lattice'].includes(style))box(.02,.98,-.078,.078,92,95,92,95,'coping-bevel',tintedPalette(tintColor(palette.end,1.16)));
+    if(['slat','lattice'].includes(style))for(const u of [.015,.945])box(u,u+.04,-.082,.082,12,91,12,91,'inset-end-frame',tintedPalette(tintColor(palette.end,.86)));
+    if(style==='rail')for(const u of [.025,.94])for(const y of [24,69])box(u,u+.035,-.048,.048,y-5,y+1,y-5,y+1,'rail-join-plate',{top:'#85857c',side:'#444941',end:'#63685c'});
+  }
+  if(['rail','privacy','slat','lattice'].includes(style)){
+    const bevel=tintedPalette(tintColor(palette.end,1.13)),groove=tintedPalette(tintColor(palette.end,.73));
+    // Profile actual board edges and joinery, rather than stamping extra surface noise.
+    if(style==='privacy')for(let i=0;i<6;i++){
+      const u=i/6;
+      for(const v of [-.086,-.014]){
+        faces.push({part:'board-edge-bevel',color:bevel.end,vertices:[point(u+.008,v,7),point(u+.020,v,7),point(u+.020,v,89),point(u+.008,v,89)]});
+        faces.push({part:'board-edge-recess',color:groove.end,vertices:[point(u+1/6-.021,v,7),point(u+1/6-.007,v,7),point(u+1/6-.007,v,89),point(u+1/6-.021,v,89)]});
+      }
+    }
+    if(style==='slat')for(const y of [22,40,58,76,94]){
+      box(.014,.986,-.043,.043,y-.9,y+.4,y-.9,y+.4,'slat-rounded-edge',bevel);
+      for(const v of [-.040,.040])faces.push({part:'slat-lower-recess',color:groove.end,vertices:[point(.015,v,y-13),point(.985,v,y-13),point(.985,v,y-11.7),point(.015,v,y-11.7)]});
+    }
+    if(style==='lattice'){
+      for(const y of [16,86])box(.025,.975,-.078,.078,y,y+3,y,y+3,'lattice-frame-bead',bevel);
+      for(const u of [.04,.92])box(u,u+.025,-.087,.087,18,86,18,86,'lattice-stile-bead',bevel);
+    }
+    if(style==='rail')for(const y of [25,70]){
+      box(.015,.985,-.045,.045,y-.8,y+.4,y-.8,y+.4,'rail-edge-round',bevel);
+      for(const u of [.02,.935])box(u,u+.045,-.053,.053,y-8,y-6,y-8,y-6,'rail-mortise-shadow',groove);
+    }
+    // Small hexagonal fasteners sit on rails/frames, with a raised head and washer.
+    const bolts=style==='slat'?[18,36,54,72,90]:style==='lattice'?[21,83]:[22,67];
+    for(const u of [.055,.945])for(const h of bolts)for(const v of style==='privacy'?[-.088,.044]:style==='rail'?[-.053,.053]:[-.09,.09]){
+      const washer=[],head=[];
+      for(let i=0;i<6;i++){const a=i*Math.PI/3;washer.push(point(u+Math.cos(a)*.013,v,h+Math.sin(a)*1.6));head.push(point(u+Math.cos(a)*.008,v+Math.sign(v)*.002,h+Math.sin(a)*1.05));}
+      faces.push({part:'fastener-washer',color:'#53564b',vertices:washer},{part:'hex-bolt',color:'#9a9a86',vertices:head});
+    }
+  }
   const detail=(u,v,h,du,dh,color,part)=>faces.push({part,color,vertices:[point(u-du,v,h),point(u,v,h+dh),point(u+du,v,h),point(u,v,h-dh)]});
   if(style==='metal'){
     const dark={top:'#566361',side:'#26312f',end:'#3b4945'};
@@ -158,9 +199,9 @@ export function stairFaces(end,rotation=0){
   const point=(u,v,h)=>end.axis==='x'?[end.x-.5+u,end.z+sign*(.5+v),h]:[end.x+sign*(.5+v),end.z-.5+u,h];
   const metal=end.style==='iron',timber=['timber','open','classic','iron'].includes(end.style),open=['open','iron'].includes(end.style);
   const crafted=end.style==='classic';
-  const palette=end.appearance?.bodyColor?tintedPalette(end.appearance.bodyColor):crafted?{top:'#b78650',side:'#67432b',end:'#95643c'}:timber?{top:'#b29976',side:'#6c5640',end:'#8d7354'}:{top:'#d3d0c2',side:'#90958b',end:'#aeb2a6'};
+  const palette=end.appearance?.bodyColor?tintedPalette(end.appearance.bodyColor):crafted?{top:'#b78650',side:'#67432b',end:'#95643c'}:timber?{top:'#aa7a49',side:'#65432b',end:'#91623b'}:{top:'#d3d0c2',side:'#90958b',end:'#aeb2a6'};
   const painted=tintedPalette(end.appearance?.bodyColor||'#e7e2d6');
-  const railPalette=end.appearance?.railColor?tintedPalette(end.appearance.railColor):metal?{top:'#71817c',side:'#303f3c',end:'#4b5d56'}:crafted?tintedPalette('#75492d'):{top:'#8d7b61',side:'#4f493d',end:'#70624f'};
+  const railPalette=end.appearance?.railColor?tintedPalette(end.appearance.railColor):metal?{top:'#71817c',side:'#303f3c',end:'#4b5d56'}:crafted?tintedPalette('#75492d'):{top:'#98734e',side:'#523b29',end:'#775335'};
   const {faces,box}=meshBuilder(point,rotation,palette),count=12,totalHeight=KIT.wallHeight,rise=totalHeight/count,run=depth/count;
   for(let i=0;i<count;i++){
     const h=(i+1)*rise,a=i*run,b=(i+1)*run;
@@ -177,6 +218,10 @@ export function stairFaces(end,rotation=0){
         faces.push({part:'tread-grain',color:tintColor(palette.top,.84+grain*.035),vertices});
       }
     }
+    if(!timber){
+      box(.05,width-.05,a-.009,a+.006,h-6,h-4,h-6,h-4,'stone-nosing-shadow',tintedPalette(tintColor(palette.end,.80)));
+      for(const u of [.05,width-.05])box(u-.008,u+.008,a+.015,b-.015,h-rise+4,h-6,h-rise+4,h-6,'stone-side-joint',tintedPalette(tintColor(palette.end,.87)));
+    }
     if(timber)box(.06,width-.06,a+.035,a+.045,h,h+.2,h,h+.2,'board-joint',railPalette);
   }
   if(timber&&!open)box(.09,width-.09,0,depth,0,10,totalHeight-rise-10,totalHeight-rise,'underside');
@@ -191,11 +236,16 @@ export function stairFaces(end,rotation=0){
         }
       }else box(u-.025,u+.025,v-.025,v+.025,h,h+43,h,h+43,'baluster',railPalette);if(end.style==='classic'){box(u-.038,u+.038,v-.038,v+.038,h+10,h+15,h+10,h+15,'baluster-collar',painted);box(u-.033,u+.033,v-.033,v+.033,h+30,h+34,h+30,h+34,'baluster-collar',painted);}}
       box(u-.068,u+.068,-.045,.07,0,rise+47,0,rise+47,'newel-post',railPalette);box(u-.085,u+.085,-.06,.085,rise+44,rise+49,rise+44,rise+49,'newel-cap',railPalette);
+      if(!crafted){
+        box(u-.082,u+.082,-.06,.085,2,7,2,7,'newel-plinth',railPalette);
+        box(u-.075,u+.075,-.055,.075,rise+37,rise+40,rise+37,rise+40,'newel-neck',railPalette);
+        if(metal)for(let i=0;i<count;i+=2){const v=i*run+.04,h=(i+1)*rise;box(u-.036,u+.036,v-.036,v+.036,h+3,h+8,h+3,h+8,'iron-shoe',railPalette);}
+      }
       if(crafted)for(const [y,d,h] of [[5,.09,5],[rise+32,.075,3],[rise+40,.085,3]])box(u-d,u+d,-d,d,y,y+h,y,y+h,'newel-molding',railPalette);
       box(u-.045,u+.045,0,depth,rise+39,rise+45,totalHeight+39,totalHeight+45,'handrail',railPalette);
     }
   }
-  if(crafted&&!end.appearance?.bodyColor)for(const f of faces)if(f.part==='tread'&&f.vertices.every(v=>v[2]===f.vertices[0][2]))f.attrs={fill:f.color,'data-texture':'cc0-wood-cabinet-worn-long'};
+  if((timber||end.style==='masonry')&&!end.appearance?.bodyColor)for(const f of faces)if(f.part==='tread'&&f.vertices.every(v=>v[2]===f.vertices[0][2]))f.attrs={fill:f.color,'data-texture':timber?'cc0-wood-cabinet-worn-long':'cc0-rock-tile-floor'};
   // The landing reaches the floor above; only railing geometry is clipped.
   return faces.map(face=>{const vertices=[];for(let i=0;i<face.vertices.length;i++){
     const a=face.vertices[i],b=face.vertices[(i+1)%face.vertices.length],inside=a[2]<=KIT.wallHeight;
