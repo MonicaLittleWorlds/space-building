@@ -67,6 +67,7 @@ export function meshBuilder(point,rotation,palette){
   return {faces,box};
 }
 export function fenceFaces(w,rotation=0,posts=[true,true]){
+ if(posts.insets)return fitFenceConnection(fenceFaces(w,rotation,Array.from(posts)),w,posts);
   if(isModelFence(w.fenceStyle))return modelFenceFaces(w,rotation,posts);
   if(w.gate){
     const [a,b]=wallEnds(w),du=[b[0]-a[0],b[1]-a[1]],normal=w.axis==='x'?[1,0]:[0,1];
@@ -268,12 +269,28 @@ export function stairArrow(end){
 export function tintColor(hex,factor){return '#'+hex.slice(1).match(/../g).map(c=>Math.max(0,Math.min(255,Math.round(parseInt(c,16)*factor))).toString(16).padStart(2,'0')).join('');}
 function tintedPalette(base){return {top:tintColor(base,1.13),side:tintColor(base,.69),end:base};}
 
-export function fencePostOwners(w,walls){return wallEnds(w).map(p=>{
+export function fencePostOwners(w,walls){const owners=wallEnds(w).map(p=>{
  const incident=walls.filter(o=>o.kind==='fence'&&wallEnds(o).some(q=>q[0]===p[0]&&q[1]===p[1]));
  const id=o=>`${o.axis}:${o.x},${o.z}`;if(incident.map(id).sort()[0]!==id(w))return false;
  if(incident.some(o=>o.gate)||incident.length!==2||incident[0].axis!==incident[1].axis||incident[0].fenceStyle!==incident[1].fenceStyle)return true;
  const along=w.axis==='x'?p[1]:p[0];return (Math.floor(along)+1)%2===0;
-});}
+});
+ // Keep the post outside a perpendicular wall, including its projecting cap.
+ const offsets=wallEnds(w).map(p=>walls.some(o=>['wall','window'].includes(o.kind)&&o.axis!==w.axis&&wallEnds(o).every(q=>Math.abs(q[o.axis==='x'?0:1]-p[o.axis==='x'?0:1])<1e-8)&&(()=>{const e=wallEnds(o),i=o.axis==='x'?1:0;return p[i]>=Math.min(e[0][i],e[1][i])-1e-8&&p[i]<=Math.max(e[0][i],e[1][i])+1e-8;})())?KIT.wallThickness/2+.10:0);
+ if(offsets.some(Boolean))Object.defineProperty(owners,'insets',{value:offsets});
+ return owners;
+}
+function fitFenceConnection(faces,w,posts){
+ const [lo,hi]=posts.insets||[0,0];if(!lo&&!hi)return faces;
+ const a=wallEnds(w)[0],axis=w.axis==='x'?1:0;
+ return faces.map(f=>{
+  const center=f.vertices.reduce((n,p)=>n+p[axis]-a[axis],0)/f.vertices.length;
+  const shift=center<.5?lo:-hi;
+  const transform=p=>p.map((n,i)=>i!==axis?n:f.part.startsWith('post')?n+shift:a[axis]+lo+(n-a[axis])*(1-lo-hi));
+  const attrs={...f.attrs};for(const key of ['data-texture-basis','data-sprite-basis'])if(attrs[key])attrs[key]=attrs[key].map(transform);
+  return {...f,vertices:f.vertices.map(transform),attrs};
+ });
+}
 
 export function itemFaces(item,rotation=0){const b=meshBuilder((u,v,h)=>[item.x+u,item.z+v,h],rotation,{top:'#a9c1b3',side:'#506b63',end:'#728b83'});b.box(-.3,.3,-.3,.3,0,35);return b.faces;}
 
@@ -310,6 +327,7 @@ export function stairwell(project,stair,rotation=0){
 
 // Contact shadows stay on their floor and never contribute navigation geometry.
 export function fenceShadowFaces(w,posts=[true,true]){
+ if(posts.insets)return fitFenceConnection(fenceShadowFaces(w,Array.from(posts)),w,posts);
  const [a,b]=wallEnds(w),faces=[],normal=w.axis==='x'?[1,0]:[0,1],tangent=[b[0]-a[0],b[1]-a[1]];
  const density={rail:.42,metal:.38,'heritage-iron':.38,picket:.62,'natural-picket':.62,lattice:.60,slat:.8,privacy:1}[w.fenceStyle]??.6;
  const strip=(p,q,width,opacity,part)=>{
@@ -323,10 +341,10 @@ export function fenceShadowFaces(w,posts=[true,true]){
   end=start.map((n,i)=>n+.76*(tangent[i]*Math.cos(angle)+normal[i]*Math.sin(angle)));
  }
  // Identical falloff along the entire run; adjacent panels meet without end blobs.
- for(let band=0;band<8;band++)strip(start,end,.035+(8-band)*.022,(.011+band*.0015)*density,w.gate?'gate-shadow':'contact-shadow');
+ for(let band=0;band<8;band++)strip(start,end,.045+(8-band)*.04,(.041+band*.0035)*density,w.gate?'gate-shadow':'contact-shadow');
  for(const [i,p]of [a,b].entries())if(posts[i])for(let band=0;band<6;band++){
-  const radius=.045+(6-band)*.018;
-  faces.push({part:'post-shadow',vertices:Array.from({length:16},(_,j)=>[p[0]+Math.cos(j*Math.PI/8)*radius,p[1]+Math.sin(j*Math.PI/8)*radius,.03]),attrs:{fill:'#202822',opacity:.024+band*.003,stroke:'none','pointer-events':'none'}});
+  const radius=.055+(6-band)*.025;
+  faces.push({part:'post-shadow',vertices:Array.from({length:16},(_,j)=>[p[0]+Math.cos(j*Math.PI/8)*radius,p[1]+Math.sin(j*Math.PI/8)*radius,.03]),attrs:{fill:'#202822',opacity:.033+band*.004,stroke:'none','pointer-events':'none'}});
  }
  return faces;
 }
