@@ -41,6 +41,7 @@ function status(s){$('status').textContent=s;}
 function persist(){if(reviewMode)return;try{if(!library)throw Error('Storage unavailable');library.save(project);}catch{status('Browser storage unavailable. Use Save project to keep this design.');}}
 function history(){undo.push(clone());if(undo.length>80)undo.shift();redo=[];}
 function changed(){ensureDecor(project);roomCache=new WeakMap();persist();render();}
+let daylightView=null,daylightStarting=false;
 let surfacePatterns=new Map(),previewSurfacePatterns=new Map(),panFrame=null;
 let renderParent=null,viewMetrics=null,placementPointer=null,previewDrawing=false,previewFrame=null;
 function element(tag,attrs={},parent=renderParent||svg){const el=document.createElementNS(NS,tag);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);parent.append(el);return el;}
@@ -147,6 +148,7 @@ function render({fast=false}={}){
     else polygon(face.vertices,face.attrs);
   }
   if(tool==='select'&&!playing&&$('piece-kind').value==='stair'){const t=decorPieces(project,active,'stair').find(t=>t.id===$('piece-target').value);if(t)for(const c of triggerCells(t.value))tile(c.x,c.z,'none','#ffe0a0',{'stroke-width':3,'pointer-events':'none','data-kind':'selected-stair-base'});}
+  syncDaylight();
   $('active-room').textContent=playing?'Walking area: '+(cutaway.room?.name||'Outside'):'Closed rooms are detected automatically. Mark open-plan rooms with Room area.';
   if(!fast){
   $('name').value=project.name;
@@ -155,6 +157,7 @@ function render({fast=false}={}){
   if(!project.stairs.length)$('stairs').textContent='No stairs connected yet.';
   $('cancel-stair').hidden=!pending;
   $('room-list').replaceChildren();for(const room of l.rooms||[]){const row=document.createElement('div');row.className='stair-row';row.textContent=room.name+' · '+room.kind;const remove=document.createElement('button');remove.textContent='×';remove.ariaLabel='Remove room area '+room.name;remove.disabled=playing;remove.onclick=()=>{history();l.rooms=l.rooms.filter(r=>r.id!==room.id);changed();};row.append(remove);$('room-list').append(row);}
+  syncDaylight();
   $('active-room').textContent=playing?'Walking area: '+(cutaway.room?.name||'Outside'):'Closed rooms are detected automatically. Mark open-plan rooms with Room area.';
   $('checks').replaceChildren();const issues=validate(project);for(const issue of issues.length?issues:['Entry and reachable floor checks pass.']){const el=document.createElement('div');el.className=`check ${issues.length?'':'good'}`;el.textContent=(issues.length?'• ':'✓ ')+issue;$('checks').append(el);}
   refreshToolSettings();refreshSimpleView();refreshPieces();refreshStylePickers();
@@ -472,6 +475,21 @@ window.addEventListener('storage',e=>{if(e.key?.startsWith('lw-studio-project:')
 $('name').addEventListener('change',refreshProjects);
 refreshProjects();
 
-$('daylight-view').onclick=async()=>{const button=$('daylight-view');button.disabled=true;try{const {openDaylightView}=await import('./daylight-view.mjs');await openDaylightView(structuredClone(project),active,settings=>{history();project.daylight=settings;changed();});}catch(e){status(e.message);}finally{button.disabled=false;}};
 
+function syncDaylight(){
+ if(!daylightView)return;
+ const enabled=$('overlay').value==='none';svg.parentElement.classList.toggle('daylight-active',enabled);svg.parentElement.classList.toggle('daylight-grid',$('show-grid').checked);$('daylight-inline-host').hidden=!enabled;
+ if(enabled)daylightView.update(project,active,{...viewMetrics,pan:{...pan},rotation,openGates:playing&&avatar?.level===active?Object.values(levelOf(project,active).walls).filter(w=>w.gate&&Math.hypot(avatar.x-w.x,avatar.z-w.z)<1.8).map(edgeKey):[],collapsed:Object.values(levelOf(project,active).walls).filter(collapsedWall).map(edgeKey)});
+}
+$('daylight-view').onclick=async()=>{
+ if(daylightStarting)return;
+ const button=$('daylight-toolbar');
+ if(daylightView){daylightView.close();daylightView=null;$('daylight-inline-host')?.remove();svg.parentElement.classList.remove('daylight-active');button.setAttribute('aria-pressed','false');$('daylight-view').textContent='Use daylight in builder';return;}
+ daylightStarting=true;button.disabled=true;
+ try{
+  const {openDaylightView}=await import('./daylight-view.mjs');const host=document.createElement('div');host.id='daylight-inline-host';svg.parentElement.prepend(host);
+  daylightView=await openDaylightView(project,active,settings=>{history();project.daylight=settings;changed();},{mount:host,controls:$('daylight-view').parentElement});
+  button.setAttribute('aria-pressed','true');$('sidebar-tab-view')?.click();$('daylight-view').textContent='Return to native materials';syncDaylight();
+ }catch(e){$('daylight-inline-host')?.remove();status(e.message);}finally{daylightStarting=false;button.disabled=false;}
+};
 $('daylight-toolbar').onclick=()=>$('daylight-view').click();

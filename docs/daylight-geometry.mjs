@@ -10,9 +10,9 @@ export function daylightSettings(value={}) {
 export function sunlightPosition(settings,distance=30){const s=daylightSettings(settings),a=s.azimuth*Math.PI/180,e=s.elevation*Math.PI/180;return [Math.cos(a)*Math.cos(e)*distance,Math.sin(e)*distance,Math.sin(a)*Math.cos(e)*distance];}
 // UV phase belongs to world coordinates, never to an individual tile or wall.
 export function worldUV([x,z,h=0],axis='floor',period=2){return axis==='floor'?[x/period,-z/period]:[(axis==='x'?z:x)/period,h/HEIGHT_UNIT/period];}
-export function daylightGeometry(project,levelId,{rotation:cameraRotation=0,cutaway=false}={}){
+export function daylightGeometry(project,levelId,{rotation:cameraRotation=0,cutaway=false,collapsed=[],openGates=[]}={}){
  const level=project.levels.find(l=>l.id===levelId);if(!level)return {faces:[],warnings:[]};
- const faces=[],warnings=new Set(),walls=Object.values(level.walls),corners=wallCorners(level.walls),seen=new Set();
+ const faces=[],warnings=new Set(),walls=Object.values(level.walls),corners=wallCorners(level.walls,w=>collapsed.includes(`${w.axis}:${w.x},${w.z}`)),seen=new Set();
  const wells=project.stairs.filter(s=>stairLevels(project,s).upper.level===levelId).map(s=>stairwell(project,s,0)).filter(Boolean),holes=new Set(wells.flatMap(w=>w.cells.map(c=>`${c.x},${c.z}`)));
  function add(face,material,kind='wall'){
   const v=face.vertices,a=face.attrs||{},part=a['data-part']||face.part||'';
@@ -28,9 +28,9 @@ export function daylightGeometry(project,levelId,{rotation:cameraRotation=0,cuta
  const hidden=new Set(walls.filter(w=>cutaway&&w.kind!=='fence'&&wallSide({...w,facing:wallFacing(w,level.tiles)},cameraRotation)==='back'));
  for(const w of walls)for(let rotation=0;rotation<4;rotation++){
   if(hidden.has(w))continue;
-  if(w.kind==='fence'){for(const f of fenceFaces(w,rotation,fencePostOwners(w,walls)))if(!f.attrs?.['data-sprite']||rotation===cameraRotation)add(f,null,'fence');continue;}
+  if(w.kind==='fence'){for(const f of fenceFaces({...w,gateOpen:openGates.includes(`${w.axis}:${w.x},${w.z}`)},rotation,fencePostOwners(w,walls)))if(!f.attrs?.['data-sprite']||rotation===cameraRotation)add(f,null,'fence');continue;}
   const back=wallSide({...w,facing:wallFacing(w,level.tiles)},rotation)==='back',material=back?(w.exteriorMaterial||w.material):w.material;
-  for(const f of wallFaces(w,{level,rotation,corners,collapsed:false,paint:{back:false,material,fill:kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9',opacity:1}}))add(f,material||'blank');
+  for(const f of wallFaces(w,{level,rotation,corners,collapsed:collapsed.includes(`${w.axis}:${w.x},${w.z}`),paint:{back:false,material,fill:kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9',opacity:1}}))add(f,material||'blank');
  }
  for(const c of corners.filter(c=>!c.walls.every(w=>hidden.has(w))))for(let r=0;r<4;r++)for(const f of wallCornerFaces(c,r))add(f,f.wall?.material||'blank');
  for(const s of project.stairs)if(stairLevels(project,s).lower.level===levelId)for(let r=0;r<4;r++)for(const f of stairFaces(stairLevels(project,s).lower,r))add(f,null,'stair');
