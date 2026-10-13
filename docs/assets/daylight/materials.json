@@ -1,0 +1,24 @@
+{
+  "plaster": {
+    "period": 2,
+    "source": "https://polyhaven.com/a/plastered_wall_05",
+    "license": "CC0",
+    "map": "assets/daylight/plaster-map.jpg",
+    "normalMap": "assets/daylight/plaster-normalMap.jpg",
+    "roughnessMap": "assets/daylight/plaster-roughnessMap.jpg"
+  },
+  "timber": {
+    "period": 2,
+    "source": "https://polyhaven.com/a/wood_floor",
+    "license": "CC0",
+    "map": "assets/daylight/timber-map.jpg",
+    "normalMap": "assets/daylight/timber-normalMap.jpg",
+    "roughnessMap": "assets/daylight/timber-roughnessMap.jpg"
+  },
+  "grass": {
+    "period": 2,
+    "source": "https://polyhaven.com/a/grass_ground",
+    "license": "CC0",
+    "map": "assets/daylight/grass-map.jpg"
+  }
+}

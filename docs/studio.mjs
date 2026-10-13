@@ -471,3 +471,7 @@ $('refresh-projects').onclick=refreshProjects;
 window.addEventListener('storage',e=>{if(e.key?.startsWith('lw-studio-project:')||e.key?.startsWith('lw-studio-trash:'))refreshProjects();});
 $('name').addEventListener('change',refreshProjects);
 refreshProjects();
+
+$('daylight-view').onclick=async()=>{const button=$('daylight-view');button.disabled=true;try{const {openDaylightView}=await import('./daylight-view.mjs');await openDaylightView(structuredClone(project),active,settings=>{history();project.daylight=settings;changed();});}catch(e){status(e.message);}finally{button.disabled=false;}};
+
+$('daylight-toolbar').onclick=()=>$('daylight-view').click();

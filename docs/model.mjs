@@ -88,6 +88,7 @@ export function parseProject(value) {
   const appearance=(v,fields)=>{if(v===undefined)return;if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).some(k=>!fields.includes(k))||Object.values(v).some(c=>typeof c!=='string'||!/^#[0-9a-f]{6}$/i.test(c)))fail();};
   const pos=n=>n&&Number.isSafeInteger(n.x)&&Number.isSafeInteger(n.z);
   if(!p||p.format!=='lw-space-studio'||p.version!==1||typeof p.name!=='string'||p.name.length>120||!Array.isArray(p.levels)||p.levels.length<1||!Array.isArray(p.stairs)) fail();
+  if(p.daylight!==undefined){const d=p.daylight;if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).some(k=>!['azimuth','elevation','intensity'].includes(k))||!Number.isFinite(d.azimuth)||d.azimuth<0||d.azimuth>360||!Number.isFinite(d.elevation)||d.elevation<10||d.elevation>85||!Number.isFinite(d.intensity)||d.intensity<0||d.intensity>4)fail();}
   const ids=new Set();
   for(const l of p.levels) {
     if(!l||typeof l.id!=='string'||!/^[-\w]{1,80}$/.test(l.id)||ids.has(l.id)||typeof l.name!=='string'||l.name.length>80||!l.tiles||!l.walls||!Array.isArray(l.items)) fail();
