@@ -251,7 +251,7 @@ function edit(e){const p=unproject(e),x=Math.round(p.wx),z=Math.round(p.wz),n={l
   else if(['wall','door','window','fence','gate'].includes(tool))l.walls[edgeKey(edge)]={...edge,kind:tool==='gate'?'fence':tool,...(tool==='gate'?{gate:true}:{}),...(tool==='door'?{doorStyle:$('door-style').value}:{}),...(tool==='window'?{windowStyle:$('window-style').value}:{}),collapse:$('collapse').checked,mount:tool==='wall'&&$('mount').checked,material:$('wall-material').value,...($('facing').value==='auto'?{}:{facing:+$('facing').value}),fenceStyle:$('fence-style').value,decorGroup:l.walls[edgeKey(edge)]?.decorGroup??null,exteriorDecorGroup:l.walls[edgeKey(edge)]?.exteriorDecorGroup??null};
   if(tool==='face'){const w=l.walls[edgeKey(edge)];if(w&&w.kind!=='fence')w.facing=-wallFacing(w,l.tiles);}
   if(tool==='decor'){const kind=$('decor-kind').value,group=$('decor-group').value;if(!group)return;const hit=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-decor-edge]');const id=kind==='floor'?key(x,z):(hit?.dataset.decorEdge||edgeKey(edge)),target=(kind==='floor'?l.tiles:l.walls)[id];if(!decorRemoving||target?.[decorField(kind,$('decor-area').value)]===group){const result=decorRemoving?assignDecorSafely(project,active,kind,id,null,$('decor-area').value):toggleDecorSelection(project,active,kind,id,group,$('decor-area').value,$('decor-reassign').checked);if(!result.ok&&result.owner)status(`Protected: already in ${project.decorGroups.find(g=>g.id===result.owner)?.name}. Enable moving surfaces only if you want to reassign it.`);}}
-  if(tool==='item'){if(!canPlace(project,n)){status('This tile is not available for item placement.');return;}l.items.push({x,z});}
+  if(tool==='item'){if(!canPlace(project,n)){status('This tile is not available for item placement.');return;}if($('item-light').checked&&l.items.filter(i=>i.light).length>=4){status('This floor already has four shadow-casting lights. Remove one before placing another.');return;}l.items.push({x,z,...($('item-light').checked?{light:{color:$('item-light-color').value,intensity:12,height:1.8,range:8}}:{})});}
   if(tool==='spawn'){if(!walkable(project,n)||portalAt(project,n)){status('Entry needs walkable floor outside the stairs.');return;}project.spawn=n;}
   if(tool==='stairs'){
     const end=stairBrush(n),problem=stairPlacementProblem(end);if(problem){status(problem);return;}
@@ -355,6 +355,7 @@ const toolFields={
  door:['door-style','wall-material','facing','collapse'],
  window:['window-style','wall-material','facing','collapse'],
  fence:['fence-style'],gate:['fence-style'],
+ item:['item-light','item-light-color'],
  stairs:['stair-width','stair-style','stair-depth','stair-rise','axis']
 };
 function setupRightPanel(){
@@ -479,7 +480,7 @@ refreshProjects();
 function syncDaylight(){
  if(!daylightView)return;
  const enabled=$('overlay').value==='none';svg.parentElement.classList.toggle('daylight-active',enabled);svg.parentElement.classList.toggle('daylight-grid',$('show-grid').checked);$('daylight-inline-host').hidden=!enabled;
- if(enabled)daylightView.update(project,active,{...viewMetrics,pan:{...pan},rotation,openGates:playing&&avatar?.level===active?Object.values(levelOf(project,active).walls).filter(w=>w.gate&&Math.hypot(avatar.x-w.x,avatar.z-w.z)<1.8).map(edgeKey):[],collapsed:Object.values(levelOf(project,active).walls).filter(collapsedWall).map(edgeKey)});
+ if(enabled)daylightView.update(project,active,{...viewMetrics,pan:{...pan},avatar:playing?avatar:null,rotation,openGates:playing&&avatar?.level===active?Object.values(levelOf(project,active).walls).filter(w=>w.gate&&Math.hypot(avatar.x-w.x,avatar.z-w.z)<1.8).map(edgeKey):[],collapsed:Object.values(levelOf(project,active).walls).filter(collapsedWall).map(edgeKey)});
 }
 $('daylight-view').onclick=async()=>{
  if(daylightStarting)return;

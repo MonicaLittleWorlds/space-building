@@ -95,7 +95,7 @@ export function parseProject(value) {
     ids.add(l.id);
     for(const [k,t] of Object.entries(l.tiles)) {const [x,z]=k.split(',').map(Number);if(!pos({x,z})||key(x,z)!==k||!t||typeof t.walk!=='boolean'||typeof t.place!=='boolean') fail();}
     for(const [k,w] of Object.entries(l.walls)) if(!pos(w)||!['x','z'].includes(w.axis)||!['wall','door','fence','window'].includes(w.kind)||typeof w.collapse!=='boolean'||typeof w.mount!=='boolean'||k!==edgeKey(w)) fail();
-    for(const i of l.items) if(!pos(i)) fail();
+    for(const i of l.items){if(!pos(i))fail();if(i.light!==undefined){const a=i.light;if(!a||typeof a!=='object'||!/^#[a-f0-9]{6}$/i.test(a.color)||!Number.isFinite(a.height)||a.height<.2||a.height>3.3||!Number.isFinite(a.intensity)||a.intensity<0||a.intensity>40||!Number.isFinite(a.range)||a.range<1||a.range>20)fail();}}
     if(l.rooms!==undefined){
       if(!Array.isArray(l.rooms)||l.rooms.length>1000)fail();const roomIds=new Set();
       for(const r of l.rooms){if(!pos(r)||typeof r.id!=='string'||r.id.length>80||roomIds.has(r.id)||typeof r.name!=='string'||r.name.length>80||!['indoor','outdoor'].includes(r.kind)||!Number.isSafeInteger(r.width)||r.width<1||!Number.isSafeInteger(r.depth)||r.depth<1||!Number.isSafeInteger(r.x+r.width)||!Number.isSafeInteger(r.z+r.depth))fail();roomIds.add(r.id);}
