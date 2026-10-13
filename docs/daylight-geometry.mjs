@@ -30,7 +30,7 @@ export function daylightGeometry(project,levelId,{rotation:cameraRotation=0,cuta
   if(hidden.has(w))continue;
   if(w.kind==='fence'){for(const f of fenceFaces({...w,gateOpen:openGates.includes(`${w.axis}:${w.x},${w.z}`)},rotation,fencePostOwners(w,walls)))if(!f.attrs?.['data-sprite']||rotation===cameraRotation)add(f,null,'fence');continue;}
   const back=wallSide({...w,facing:wallFacing(w,level.tiles)},rotation)==='back',material=back?(w.exteriorMaterial||w.material):w.material;
-  for(const f of wallFaces(w,{level,rotation,corners,collapsed:collapsed.includes(`${w.axis}:${w.x},${w.z}`),paint:{back:false,material,fill:kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9',opacity:1}}))add(f,material||'blank');
+  for(const f of wallFaces(w,{level,rotation,corners,collapsed:collapsed.includes(`${w.axis}:${w.x},${w.z}`),cutSelection:new Set(collapsed),paint:{back:false,material,fill:kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9',opacity:1}}))add(f,material||'blank');
  }
  for(const c of corners.filter(c=>!c.walls.every(w=>hidden.has(w))))for(let r=0;r<4;r++)for(const f of wallCornerFaces(c,r))add(f,f.wall?.material||'blank');
  for(const s of project.stairs)if(stairLevels(project,s).lower.level===levelId)for(let r=0;r<4;r++)for(const f of stairFaces(stairLevels(project,s).lower,r))add(f,null,'stair');
