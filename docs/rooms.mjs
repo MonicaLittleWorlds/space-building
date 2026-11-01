@@ -62,11 +62,9 @@ export function roomCutaway(level,{avatar=null,rotation=0,mode='auto',rooms=room
  return {selected,room};
 }
 export function cutProfile(w,walls,selected){
- const high=wallEnds(w).map(p=>Object.values(walls).some(other=>other!==w&&structural(other)&&!selected.has(edgeKey(other))&&wallEnds(other).some(q=>q[0]===p[0]&&q[1]===p[1])));
- const result=[[0,high[0]?KIT.wallHeight:26]];
- if(high[0])result.push([.4,26]);
- if(high[1])result.push([.6,26]);
- result.push([1,high[1]?KIT.wallHeight:26]);return result;
+ // A cut wall is low along its whole run. Raising either end to the height
+ // of an adjacent upright wall produced tall triangular spikes in the game.
+ return [[0,26],[1,26]];
 }
 
 export function roomWallOpacity(w,selected,mode,visibility,back=false){

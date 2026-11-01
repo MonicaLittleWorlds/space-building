@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {wallFaces} from './architecture.mjs';
 import {wallCorners,wallCornerFaces} from './geometry.mjs';
 import {wallContactShadows,wallCornerAmbientShadows} from './room-shading.mjs';
+import {cutProfile} from './rooms.mjs';
 
 const wall=(axis,x,z,kind='wall')=>({axis,x,z,kind,collapse:true,mount:true,material:'plaster'});
 test('wall base and joined corner shade while the doorway stays open',()=>{
@@ -21,4 +22,8 @@ test('contact bands reach the floor and respect floor holes',()=>{
   const a=wall('x',0,0),level={tiles:{'0,0':{}},walls:{'x:0,0':a},rooms:[{kind:'indoor',x:0,z:0,width:1,depth:1}]};
   assert.equal(wallContactShadows(level).length,32);
   assert.equal(wallContactShadows(level,new Set(['0,0'])).length,0);
+});
+test('collapsed wall stays low beside an upright wall',()=>{
+  const low=wall('x',0,0),upright=wall('x',0,1);
+  assert.deepEqual(cutProfile(low,{'x:0,0':low,'x:0,1':upright},new Set(['x:0,0'])),[[0,26],[1,26]]);
 });
