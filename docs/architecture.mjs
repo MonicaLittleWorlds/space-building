@@ -10,7 +10,7 @@ export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={
 function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='door'?[]:corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w),material=paint.material||w.material;
   const attrs={'data-kind':w.kind,'data-level':active,'data-collapsed':collapsed,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-face':back?'back':'front',opacity,'pointer-events':'none'};
   const at=(u,y,d=0)=>{const side=w.axis==='x'?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];return [a[0]+(b[0]-a[0])*u+(w.axis==='x'?side*d:0),a[1]+(b[1]-a[1])*u+(w.axis==='z'?side*d:0),y];};
-  const flat=(u,v,low,high,color,overrides={})=>polygon([at(u,low),at(v,low),at(v,high),at(u,high)],{fill:color,stroke:back?'none':color,'stroke-width':.35,...attrs,...overrides});
+  const flat=(u,v,low,high,color,overrides={})=>polygon([at(u,low),at(v,low),at(v,high),at(u,high)],{fill:color,stroke:color,'stroke-width':1.2,'stroke-linejoin':'round',...attrs,...overrides});
   const panel=(u,v,low,high,color=fill,overrides={})=>{
     flat(u,v,low,high,color,{...(!back&&color===fill&&surfaceMaterial(material)?{'data-texture':material}:{}),...overrides});
     if(back||color!==fill||Object.keys(overrides).length||!['brick','stone','wood','panel'].includes(material))return;

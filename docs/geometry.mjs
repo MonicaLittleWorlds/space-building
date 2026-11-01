@@ -50,7 +50,7 @@ export function wallCornerFaces(corner,rotation=0){
     {part:'cap',wall:corner.walls[0],vertices:[[x-t,z-t,h],[x+t,z-t,h],[x+t,z+t,h],[x-t,z+t,h]]},
   ];
 }
-export function wallCapEnds(w,corners){const ends=wallEnds(w),t=KIT.wallThickness/2;return ends.map((p,i)=>{if(!corners.some(c=>c.x===p[0]&&c.z===p[1]))return p;const q=ends[1-i];return [p[0]+Math.sign(q[0]-p[0])*t,p[1]+Math.sign(q[1]-p[1])*t];});}
+export function wallCapEnds(w,corners){const ends=wallEnds(w),t=KIT.wallThickness/2,bleed=.014;return ends.map((p,i)=>{const q=ends[1-i],joined=corners.some(c=>c.x===p[0]&&c.z===p[1]);const inset=joined?t-bleed:-bleed;return [p[0]+Math.sign(q[0]-p[0])*inset,p[1]+Math.sign(q[1]-p[1])*inset];});}
 export function visibleLevelObjects(project,id){const l=project.levels.find(l=>l.id===id);return l?{walls:Object.values(l.walls),items:l.items}: {walls:[],items:[]};}
 // Volumetric construction parts, authored directly in LW grid units.
 export function meshBuilder(point,rotation,palette){

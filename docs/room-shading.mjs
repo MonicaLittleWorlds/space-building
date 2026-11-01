@@ -25,8 +25,10 @@ export function wallFaceAmbientShadows(faces,wall,corners=[]){
    if(da>=-1e-8)out.push(a);if((da>=0)!==(db>=0)){const t=da/(da-db);out.push(a.map((n,k)=>n+(b[k]-n)*t));}}
   return out;
  };
- const bands=[0,3,7,12,19,28,40],baseAlpha=[.115,.083,.059,.039,.023,.012];
- const edges=[0,.045,.10,.18],edgeAlpha=[.105,.061,.028],shadows=[];
+ const bands=[0,4,9,16,25,37,53],baseAlpha=[.20,.14,.095,.061,.036,.018];
+ // Carry the join shade onto both adjoining wall faces for their full height.
+ // A narrow join-only strip reads as a seam instead of a room corner.
+ const edges=[0,.055,.13,.23,.36,.52],edgeAlpha=[.29,.20,.125,.069,.029],shadows=[];
  for(const face of faces){
   const part=face.attrs?.['data-part']||'';
   if(part&&!['room-cut'].includes(part))continue;
@@ -46,7 +48,7 @@ export function wallCornerAmbientShadows(faces,corner){
   const part=face.part||face.attrs?.['data-part'];
   if(!/^side-/.test(part||''))continue;
   const axis=part==='side-x'?1:0,mid=corner[axis===0?'x':'z'];
-  for(const side of [-1,1])for(const [inner,outer,opacity]of [[0,.02,.16],[.02,.04,.12],[.04,.06,.075]]){
+  for(const side of [-1,1])for(const [inner,outer,opacity]of [[0,.02,.29],[.02,.04,.21],[.04,.06,.13]]){
    const poly=face.vertices.filter(()=>true).map(p=>p.slice());
    const clip=(vertices,bound,sign)=>{const out=[];for(let i=0;i<vertices.length;i++){
     const a=vertices[i],b=vertices[(i+1)%vertices.length],da=(a[axis]-bound)*sign,db=(b[axis]-bound)*sign;
@@ -67,13 +69,13 @@ export function wallContactShadows(level,holes=new Set(),walls=Object.values(lev
    if(!level.tiles[cell]||holes.has(cell))continue;
    const edge=w.axis==='x'?w.x-.5:w.z-.5,start=w.axis==='x'?w.z-.5:w.x-.5;
    const indoor=(level.rooms||[]).some(r=>r.kind==='indoor'&&x>=r.x&&z>=r.z&&x<r.x+r.width&&z<r.z+r.depth);
-   const spread=indoor?.34:.48;
+   const spread=indoor?.42:.54;
    // Begin at the visible wall face; centerline contact was hidden inside its thickness.
    const wallFaceOffset=.06;
    for(let band=0;band<CONTACT_SHADOW_BANDS;band++){
     const fraction=1-band/CONTACT_SHADOW_BANDS;
-    const previous=.32*(band/CONTACT_SHADOW_BANDS)**2;
-    const target=.32*((band+1)/CONTACT_SHADOW_BANDS)**2;
+    const previous=.42*(band/CONTACT_SHADOW_BANDS)**2;
+    const target=.42*((band+1)/CONTACT_SHADOW_BANDS)**2;
     const opacity=(target-previous)/(1-previous);
     const width=spread*fraction;
     const point=(u,d)=>w.axis==='x'?[edge+sign*(wallFaceOffset+d),start+u,.015]:[start+u,edge+sign*(wallFaceOffset+d),.015];
