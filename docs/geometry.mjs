@@ -316,7 +316,7 @@ export function stairLevels(project,stair){
 }
 export function stairwell(project,stair,rotation=0){
   const {lower,upper}=stairLevels(project,stair);
-  if(!upper.style)return null;
+  // Legacy projects omit style; stairFaces renders those as basic stairs too.
   const width=upper.width===1?1:2,depth=upper.depth||2,sign=upper.rise===1?1:-1;
   const point=(u,v,h=0)=>upper.axis==='x'?[upper.x-.5+u,upper.z+sign*(.5+v),h]:[upper.x+sign*(.5+v),upper.z-.5+u,h];
   const opening=[point(0,0),point(width,0),point(width,depth),point(0,depth)];

@@ -201,6 +201,7 @@ function stairBrush(n){return {...n,axis:$('axis').value,angle:$('axis').value==
 function stairPlacementProblem(end){
  const l=levelOf(project,end.level);
  if(triggerCells(end).some(c=>!walkable(project,c)||portalAt(project,c)||nodeKey(project.spawn||{})===nodeKey(c)))return 'The stair base needs free walkable floor, away from entry and other stairs.';
+ if(stairFlightCells(end).some(c=>!l.tiles[key(c.x,c.z)]))return 'The stair flight needs floor tiles beneath its full footprint.';
  if(stairFlightCells(end).some(c=>portalAt(project,c)||stairSolidAt(project,c)||nodeKey(project.spawn||{})===nodeKey(c)||l.items.some(i=>i.x===c.x&&i.z===c.z)))return 'The stair flight overlaps entry, another stair, or an item.';
  if(pending?.level===end.level)return 'Choose a different floor to finish this connection.';
  return '';

@@ -11,18 +11,17 @@ export function demoProject() {
   for(const [i,l] of p.levels.entries()) {
     l.rooms=[{id:'main-room',name:'Main room',kind:'indoor',x:0,z:0,width:9,depth:7}];
     for(let x=0;x<9;x++) for(let z=0;z<7;z++) {
-      if(i===1&&x>2&&x<6&&z>2&&z<5) continue;
       l.tiles[key(x,z)]={walk:true,place:true};
     }
-    for(let x=0;x<9;x++) l.walls[edgeKey({axis:'z',x,z:0})]={axis:'z',x,z:0,kind:'wall',collapse:true,mount:true};
-    for(let z=0;z<7;z++) l.walls[edgeKey({axis:'x',x:0,z})]={axis:'x',x:0,z,kind:'wall',collapse:true,mount:true};
+    for(let x=0;x<9;x++) for(const z of [0,7]) l.walls[edgeKey({axis:'z',x,z})]={axis:'z',x,z,kind:'wall',collapse:true,mount:true};
+    for(let z=0;z<7;z++) for(const x of [0,9]) l.walls[edgeKey({axis:'x',x,z})]={axis:'x',x,z,kind:'wall',collapse:true,mount:true};
   }
   p.levels[0].walls['x:4,3']={axis:'x',x:4,z:3,kind:'door',collapse:true,mount:false};
-  p.stairs=[{id:'stairs-1',a:{level:'floor-1',x:6,z:1,axis:'x',angle:90},b:{level:'floor-2',x:6,z:1,axis:'x',angle:90}}];
+  p.stairs=[{id:'stairs-1',a:{level:'floor-1',x:6,z:1,axis:'x',angle:90,width:2,style:'basic',depth:2,rise:1},b:{level:'floor-2',x:6,z:1,axis:'x',angle:90,width:2,style:'basic',depth:2,rise:1}}];
   p.spawn={level:'floor-1',x:2,z:4}; return p;
 }
 export function triggerCells(end) {return Array.from({length:end.width===1?1:2},(_,i)=>({...end,x:end.x+(end.axis==='x'?i:0),z:end.z+(end.axis==='z'?i:0)}));}
-export function stairFlightCells(end){if(!end.style)return [];const sign=end.rise===1?1:-1;return triggerCells(end).flatMap(c=>Array.from({length:end.depth||2},(_,i)=>i+1).map(d=>({...c,x:c.x+(end.axis==='z'?sign*d:0),z:c.z+(end.axis==='x'?sign*d:0)})));}
+export function stairFlightCells(end){const sign=end.rise===1?1:-1;return triggerCells(end).flatMap(c=>Array.from({length:end.depth||2},(_,i)=>i+1).map(d=>({...c,x:c.x+(end.axis==='z'?sign*d:0),z:c.z+(end.axis==='x'?sign*d:0)})));}
 export function stairSolidAt(p,n){return p.stairs.some(s=>[s.a,s.b].some(e=>stairFlightCells(e).some(c=>nodeKey(c)===nodeKey(n))));}
 export function portalAt(p,n) {for(const s of p.stairs) for(const [a,b] of [[s.a,s.b],[s.b,s.a]]) if(triggerCells(a).some(c=>nodeKey(c)===nodeKey(n))) return {id:s.id,from:a,to:b}; return null;}
 export function walkable(p,n) {const l=levelOf(p,n.level);return !!l?.tiles[key(n.x,n.z)]?.walk&&!l.items.some(i=>i.x===n.x&&i.z===n.z)&&!stairSolidAt(p,n);}
@@ -76,7 +75,10 @@ export function unreachableCells(p) {
 export function validate(p) {
   const issues=[];
   if(!p.spawn||!walkable(p,p.spawn)) issues.push('Set an entry point on walkable, unoccupied floor.');
-  for(const s of p.stairs) for(const e of [s.a,s.b]) if(triggerCells(e).some(c=>!walkable(p,c))) issues.push(`${s.id}: trigger cells need walkable, unoccupied floor.`);
+  for(const s of p.stairs) for(const e of [s.a,s.b]) {
+    if(triggerCells(e).some(c=>!walkable(p,c))) issues.push(`${s.id}: trigger cells need walkable, unoccupied floor.`);
+    if(stairFlightCells(e).some(c=>!levelOf(p,e.level)?.tiles[key(c.x,c.z)])) issues.push(`${s.id} (${levelOf(p,e.level)?.name||e.level}): the full stair flight needs floor tiles beneath it.`);
+  }
   for(const l of p.levels) for(const i of l.items) if(!l.tiles[key(i.x,i.z)]?.place) issues.push(`${l.name}: a test item is outside a placeable tile.`);
   const unreachable=unreachableCells(p).length;
   if(unreachable) issues.push(`${unreachable} walkable cells cannot be reached from entry.`);
@@ -112,7 +114,7 @@ export function parseProject(value) {
 // Rotate one authored endpoint; the connected floor keeps its own layout.
 export function rotatedStairEnd(project,id,side,turn=1){
  const stair=project.stairs.find(s=>s.id===id),end=stair?.[side];
- if(!end||!['a','b'].includes(side)||!end.style)throw Error('Select a placed staircase first.');
+ if(!end||!['a','b'].includes(side))throw Error('Select a placed staircase first.');
  const directions=[['x',-1],['z',1],['x',1],['z',-1]];
  const index=directions.findIndex(([axis,rise])=>axis===end.axis&&rise===(end.rise===1?1:-1));
  const [axis,rise]=directions[(index+(turn===2?2:turn<0?3:1))%4];
@@ -120,6 +122,7 @@ export function rotatedStairEnd(project,id,side,turn=1){
  const other={...project,stairs:project.stairs.filter(s=>s.id!==id)};
  const level=levelOf(project,end.level);
  if(triggerCells(next).some(c=>!walkable(other,c)||portalAt(other,c)||nodeKey(project.spawn||{})===nodeKey(c)))throw Error('The rotated stair base needs free walkable floor.');
+ if(stairFlightCells(next).some(c=>!level.tiles[key(c.x,c.z)]))throw Error('The rotated stair flight needs floor tiles beneath it.');
  if(stairFlightCells(next).some(c=>portalAt(other,c)||stairSolidAt(other,c)||nodeKey(project.spawn||{})===nodeKey(c)||level.items.some(i=>i.x===c.x&&i.z===c.z)))throw Error('The rotated stairs would overlap another stair, an item, or the entry point.');
  return next;
 }

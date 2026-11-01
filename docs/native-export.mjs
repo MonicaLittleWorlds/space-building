@@ -100,7 +100,9 @@ for(const [li,l]of project.levels.entries()){
    const below=model.levelOf(project,well.lower.level);
    await sprite({id:`well_${serial++}`,anchor:[end.x,end.z],level:li,kind:'well',layer:'ground',clip:well.opening,faces:r=>{
     const w=geo.stairwell(project,s,r),faces=Object.entries(below.tiles).map(([k,t])=>{const [x,z]=k.split(',').map(Number);return{...(surfaceMaterial(t.material)?{attrs:{fill:surfaceMaterial(t.material).color,'data-texture':t.material,'data-floor-texture':true,'data-texture-basis':[[-.5,-.5],[1.5,-.5],[-.5,1.5]].map(p=>w.belowPoint(...p))}}:{}),color:kit.floorMaterials.find(m=>m.id===(t.material||'blank'))?.color||'#c1c5b8',vertices:[[x-.5,z-.5],[x+.5,z-.5],[x+.5,z+.5],[x-.5,z+.5]].map(p=>w.belowPoint(...p))};});
-    return [...faces,...orderFaces([...w.faces,...stairwellWallFaces(w,below,r)],r)];
+    // The projected lower floor can leave transparent pixels at oblique views.
+    // Keep the opening shaded beneath the stair and lower-floor artwork.
+    return [{part:'stairwell-cavity',vertices:w.opening,color:'#8b9a98',attrs:{fill:'#8b9a98',stroke:'none'}},...faces,...orderFaces([...w.faces,...stairwellWallFaces(w,below,r)],r)];
    }});
   }
  }
