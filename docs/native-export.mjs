@@ -11,6 +11,7 @@ import {roomLayout} from './rooms.mjs';
 import {splitFace} from './face-order.mjs';
 export const NATIVE_ORIGIN={x:.165,z:-.1356};
 export const STUDIO_WALL_VARIANTS=Object.freeze({studio_plaster:'cc0-beige-wall-001',studio_stone:'cc0-plastered-stone-wall',studio_tile:'cc0-interior-tiles',studio_brick:'cc0-red-brick'});
+const STUDIO_WALL_PAIRS=Object.freeze({original:null,plaster:STUDIO_WALL_VARIANTS.studio_plaster,stone:STUDIO_WALL_VARIANTS.studio_stone,tile:STUDIO_WALL_VARIANTS.studio_tile,brick:STUDIO_WALL_VARIANTS.studio_brick});
 const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 const hash=async (text,encoding)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoding==='base64'?Uint8Array.from(atob(text),c=>c.charCodeAt(0)):new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
 export async function createNativePackage(input,{loadFloorImage,rasterize,onProgress=()=>{}}){
@@ -56,6 +57,10 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
  return `<svg xmlns="http://www.w3.org/2000/svg" width="${fw*4}" height="${fh*states.length}">${svgFrames.join('')}</svg>`;};
  put(id+'.png',await rasterize(await renderAtlas(null)),'base64');
  if(/^(?:wall|door|window|corner|opening)_[0-9]+$/.test(id)&&['wall','opening','join'].includes(kind))for(const [variant,material] of Object.entries(STUDIO_WALL_VARIANTS))put(`${id}__${variant}.png`,await rasterize(await renderAtlas(material)),'base64');
+ if(kind==='join')for(const [x,xMaterial] of Object.entries(STUDIO_WALL_PAIRS))for(const [z,zMaterial] of Object.entries(STUDIO_WALL_PAIRS)){
+  if(x===z)continue;
+  put(`${id}__studio_x_${x}__z_${z}.png`,await rasterize(await renderAtlas({x:xMaterial,z:zMaterial})),'base64');
+ }
  if(box)box=box.map(p=>[p[0]+NATIVE_ORIGIN.x,p[1],p[2]+NATIVE_ORIGIN.z]);
  const texture=['wall','join','opening'].includes(kind)?'wall_front':'body',boxXml=box?`<box min="${box[0].join(',')}" max="${box[1].join(',')}"/>`:'';
  const layers=states.map((state,row)=>`<layer id="${state==='Up'?'front':state==='Down'?'low':state}" texture="${texture}">${frames.filter(f=>f.state===state).map(f=>`<view angle="${45+f.r*90}" col="${f.r}" row="${row}" x="${f.x0}" y="${f.y0}"/>`).join('')}</layer>`).join('');
@@ -89,7 +94,7 @@ for(const [li,l]of project.levels.entries()){
    return orderFaces(faces,r);
   }});
  }
- for(const c of corners)await sprite({id:`corner_${serial++}`,anchor:[c.x,c.z],level:li,kind:'join',join:c.walls.map(model.edgeKey),box:[[-geo.KIT.wallThickness/2,0,-geo.KIT.wallThickness/2],[geo.KIT.wallThickness/2,c.height/64,geo.KIT.wallThickness/2]],collapse:c.walls.some(w=>w.collapse),faces:(r,state,materialOverride)=>shadeArchitecture(geo.wallCornerFaces({...c,height:state==='Down'?26:c.height},r).map(f=>{const w=f.wall,exterior=geo.wallSide({...w,facing:geo.wallFacing(w,l.tiles)},r)==='back';const material=materialOverride||(exterior?(w.exteriorMaterial||w.material):w.material);return {...f,...(surfaceMaterial(material)?{attrs:{fill:surfaceMaterial(material).color,'data-texture':material}}:{}),color:geo.tintColor(kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9',f.part==='cap'?1.10:1)};}),r)});
+ for(const c of corners)await sprite({id:`corner_${serial++}`,anchor:[c.x,c.z],level:li,kind:'join',join:c.walls.map(model.edgeKey),box:[[-geo.KIT.wallThickness/2,0,-geo.KIT.wallThickness/2],[geo.KIT.wallThickness/2,c.height/64,geo.KIT.wallThickness/2]],collapse:c.walls.some(w=>w.collapse),faces:(r,state,materialOverride)=>shadeArchitecture(geo.wallCornerFaces({...c,height:state==='Down'?26:c.height},r).map(f=>{const w=f.wall,exterior=geo.wallSide({...w,facing:geo.wallFacing(w,l.tiles)},r)==='back';const override=typeof materialOverride==='string'?materialOverride:materialOverride?.[w.axis];const material=override||(exterior?(w.exteriorMaterial||w.material):w.material);return {...f,...(surfaceMaterial(material)?{attrs:{fill:surfaceMaterial(material).color,'data-texture':material}}:{}),color:geo.tintColor(kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9',f.part==='cap'?1.10:1)};}),r)});
  for(const s of project.stairs){const end=[s.a,s.b].find(e=>e.level===l.id);if(!end)continue;const levels=geo.stairLevels(project,s),lower=levels.lower===end;
   if(lower){
    const views=Array.from({length:4},(_,r)=>geo.stairFaces(end,r)),all=views.flat().flatMap(f=>f.vertices);
@@ -120,10 +125,10 @@ for(const [i,s]of project.stairs.entries())for(const [a,b,side,other]of [[s.a,s.
  zones.push(`<zone id="lw_stair_${i}_${side}" type="portal" link="lw_stair_${i}_${other}" bounds="${a.x-.45},${a.z+levelOffsets[li]-.45},${a.axis==='x'?(a.width||2)-.1:.9},${a.axis==='z'?(a.width||2)-.1:.9}" angle="${a.angle||0}"/>`);
 }
 const spawn=project.spawn,si=project.levels.findIndex(l=>l.id===spawn.level);
-const contract={version:2,decorVariantVersion:1,gateAnimation:{frames:9,durationMs:480,radius:1.35},origin:NATIVE_ORIGIN,levelOffsets,rooms,landings,levels:project.levels.map(l=>({id:l.id,walls:Object.fromEntries(Object.entries(l.walls).map(([key,w])=>[key,{...w,facing:geo.wallFacing(w,l.tiles)}]))})),decor:build.decor};
+const contract={version:2,decorVariantVersion:2,gateAnimation:{frames:9,durationMs:480,radius:1.35},origin:NATIVE_ORIGIN,levelOffsets,rooms,landings,levels:project.levels.map(l=>({id:l.id,walls:Object.fromEntries(Object.entries(l.walls).map(([key,w])=>[key,{...w,facing:geo.wallFacing(w,l.tiles)}]))})),decor:build.decor};
 const xml=`<space.Space id="@MODEL_ID@" studioFormat="2" name="${escape(project.name)}" desc="LittleWorlds Space Studio test import" diagonal="true" spawn="${spawn.x},0,${spawn.z+levelOffsets[si]}" spawnAngle="90"><studio>${escape(JSON.stringify(contract))}</studio><layers><layer id="main" sortMethod="accurate" gridValue="9"/><layer id="ground" gridValue="1"/><layer id="noaccess" gridValue="0"/></layers><sprites>${[...instances].map(([id,layers])=>`<sprite source="${prefix+id}.xml"><instances>${[...layers].map(([layer,placements])=>`<layerref id="${layer}">${placements.join('')}</layerref>`).join('')}</instances></sprite>`).join('')}</sprites><zones>${zones.join('')}</zones></space.Space>`;
 put('model.xml',xml);
-const native={format:'lw-native-assets',version:2,decorVariantVersion:1,origin:NATIVE_ORIGIN,levelOffsets,rooms,coverage,gateBehavior:'proximity-swing',manifest,files};
+const native={format:'lw-native-assets',version:2,decorVariantVersion:2,origin:NATIVE_ORIGIN,levelOffsets,rooms,coverage,gateBehavior:'proximity-swing',manifest,files};
 for(const file of Object.values(files))file.sha256=await hash(file.content,file.encoding);
 return {...build,version:2,requires:'lw-studio-game-importer-v2',native};
 }
