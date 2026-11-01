@@ -1,4 +1,5 @@
-import {shadeArchitecture,wallContactShadows,wallCornerAmbientShadows,clipGroundShadows} from './room-shading.mjs';
+import {compressPNGBase64} from './png-compress.mjs';
+import {ambientGradientSVG,shadeArchitecture,wallContactShadows,wallCornerAmbientShadows,clipGroundShadows} from './room-shading.mjs';
 import {surfaceMaterial,wallPattern,wallPatternSVG} from './material-surfaces.mjs';
 import * as geo from './geometry.mjs';
 import * as model from './model.mjs';
@@ -39,7 +40,7 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
   const w=Math.ceil(Math.max(0,...pts.map(p=>p[0])))-x0+2,h=Math.ceil(Math.max(0,...pts.map(p=>p[1])))-y0+2;fw=Math.max(fw,w);fh=Math.max(fh,h);
   frames.push({r,state,x0,y0,w,h,polygons,center});
  }
- if(!cacheKey){cacheKey=JSON.stringify({texturePhase:frames.some(f=>f.polygons.some(p=>p.attrs?.['data-texture']))?anchor.map(n=>((n%2)+2)%2):null,kind,box,walk,place,collapse,decorGroup,exteriorDecorGroup,clip:clip?.map(v=>v.map((n,i)=>i<2?n-anchor[i]:n)),frames:frames.map(f=>({r:f.r,state:f.state,polygons:f.polygons.map(p=>({screen:p.screen.map(v=>v.map(n=>Math.round(n*1e6)/1e6)),attrs:Object.fromEntries(Object.entries(p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4}).filter(([k])=>(!k.startsWith('data-')||k==='data-texture'||k==='data-surface-light'||k==='data-texture-basis'||k==='data-sprite')&&k!=='pointer-events'))}))}))});
+ if(!cacheKey){cacheKey=JSON.stringify({texturePhase:frames.some(f=>f.polygons.some(p=>p.attrs?.['data-texture']))?anchor.map(n=>((n%2)+2)%2):null,kind,box,walk,place,collapse,decorGroup,exteriorDecorGroup,clip:clip?.map(v=>v.map((n,i)=>i<2?n-anchor[i]:n)),frames:frames.map(f=>({r:f.r,state:f.state,polygons:f.polygons.map(p=>({screen:p.screen.map(v=>v.map(n=>Math.round(n*1e6)/1e6)),gradient:p.attrs?.['data-ambient-gradient']?{...p.attrs['data-ambient-gradient'],origin:projectPoint(p.attrs['data-ambient-gradient'].origin,f.r,anchor).map(n=>Math.round(n*1e6)/1e6),u:projectPoint(p.attrs['data-ambient-gradient'].u,f.r,anchor).map(n=>Math.round(n*1e6)/1e6),v:projectPoint(p.attrs['data-ambient-gradient'].v,f.r,anchor).map(n=>Math.round(n*1e6)/1e6)}:null,attrs:Object.fromEntries(Object.entries(p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4}).filter(([k])=>(!k.startsWith('data-')||k==='data-texture'||k==='data-surface-light'||k==='data-texture-basis'||k==='data-sprite')&&k!=='pointer-events'))}))}))});
  if(cache.has(cacheKey)){const cached=cache.get(cacheKey);placeAsset(cached.id);manifest.push({...cached,anchor,level,edge,join});return;}}
  const imageData=floorImage?await textureData(floorImage):null;
  const renderAtlas=async materialOverride=>{const svgFrames=[];
@@ -49,6 +50,7 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
   for(const [pi,p] of polygons.entries()){
    let attrs=p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4};const m=attrs['data-sprite']?{texture:attrs['data-sprite']}:surfaceMaterial(attrs['data-texture']);
    if(m){const patternId=`surface-${i}-${pi}`,data=await textureData(m.texture);body+=`<defs>${wallPatternSVG(patternId,wallPattern(p.vertices,v=>projectPoint(v,f.r,anchor),attrs['data-sprite-basis']||attrs['data-texture-basis']),`data:image/${attrs['data-sprite']?'png':'jpeg'};base64,${data}`,undefined,undefined,attrs['data-surface-light'])}</defs>`;attrs={...attrs,fill:`url(#${patternId})`,stroke:`url(#${patternId})`,'stroke-width':1.2,'stroke-linejoin':'round'};}
+   if(attrs['data-ambient-gradient']){const id=`ao-${i}-${pi}`;body+=`<defs>${ambientGradientSVG(id,attrs['data-ambient-gradient'],v=>projectPoint(v,f.r,anchor))}</defs>`;attrs={...attrs,fill:`url(#${id})`,stroke:'none'};}
    body+=`<polygon points="${p.screen.map(p=>p.join(',')).join(' ')}" ${Object.entries(attrs).filter(([k])=>!k.startsWith('data-')&&k!=='pointer-events').map(([k,v])=>`${k}="${escape(v)}"`).join(' ')}/>`;
   }
   if(clip){const points=clip.map(v=>projectPoint(v,f.r,anchor));body=`<defs><clipPath id="clip${i}"><polygon points="${points.map(p=>p.join(',')).join(' ')}"/></clipPath></defs><g clip-path="url(#clip${i})">${body}</g>`;}
@@ -66,7 +68,16 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
  const layers=states.map((state,row)=>`<layer id="${state==='Up'?'front':state==='Down'?'low':state}" texture="${texture}">${frames.filter(f=>f.state===state).map(f=>`<view angle="${45+f.r*90}" col="${f.r}" row="${row}" x="${f.x0}" y="${f.y0}"/>`).join('')}</layer>`).join('');
  const frameXml=states.map(s=>`<frame id="${s}"><layerref id="${s==='Up'?'front':s==='Down'?'low':s}"/></frame>`).join('');
  const xml=`<item.SpriteItem id="${id}" name="LW Studio ${kind}" gridActive="${walk||kind==='solid'}" ${['wall','join','opening'].includes(kind)?'dropTargetType="wall"':place?'dropTargetType="floor" placement="floor"':''}><volume>${boxXml}</volume><data><entry key="studioKind" value="${kind}"/>${kind==='wall'&&box?'<entry key="gridEdge" value="true"/>':''}</data><textures><texture id="${texture}" source="${prefix+id}.png" cols="4" rows="${states.length}"/></textures><nodes><node id="Node" x="0" y="0" z="0">${boxXml}<layers>${layers}</layers><frames>${frameXml}</frames><animations><animation id="default"><frameref id="Up"/></animation>${states.map(s=>`<animation id="${s}"><frameref id="${s}"/></animation>`).join('')}</animations></node></nodes></item.SpriteItem>`;
- put(id+'.xml',xml);placeAsset(id);manifest.push({id,kind,level,anchor,box,frames:frames.map(({r,state,x0,y0})=>({r,state,x0,y0})),fw,fh,decorGroup,exteriorDecorGroup,edge,join});if(cacheKey)cache.set(cacheKey,manifest.at(-1));onProgress(manifest.length);
+ const surfaceFrames=frames.map(f=>{
+  const wall=edge&&project.levels[level].walls[edge];let points;
+  if(wall&&['wall','window','door'].includes(wall.kind)){
+   const side=wall.axis==='x'?[1,1,-1,-1][f.r]:[1,-1,-1,1][f.r];
+   const p=wall.axis==='x'?[wall.x-.5+side*.06,wall.z-.5,0]:[wall.x-.5,wall.z-.5+side*.06,0];
+   const u=p.slice();u[wall.axis==='x'?1:0]+=1;const v=p.slice();v[2]=geo.KIT.wallHeight;points=[p,u,v];
+  }else if(kind==='floor')points=[[anchor[0]-.5,anchor[1]-.5,0],[anchor[0]+.5,anchor[1]-.5,0],[anchor[0]-.5,anchor[1]+.5,0]];
+  return points?{r:f.r,state:f.state,basis:points.map(p=>{const q=projectPoint(p,f.r,anchor);return[q[0]-f.x0,q[1]-f.y0];})}:null;
+ }).filter(Boolean);
+ put(id+'.xml',xml);placeAsset(id);manifest.push({id,kind,level,anchor,box,surfaceFrames,frames:frames.map(({r,state,x0,y0})=>({r,state,x0,y0})),fw,fh,decorGroup,exteriorDecorGroup,edge,join});if(cacheKey)cache.set(cacheKey,manifest.at(-1));onProgress(manifest.length);
 }
 for(const [li,l]of project.levels.entries()){
  const wells=project.stairs.filter(s=>geo.stairLevels(project,s).upper.level===l.id).map(s=>geo.stairwell(project,s,0)).filter(Boolean);
@@ -78,8 +89,8 @@ for(const [li,l]of project.levels.entries()){
   await sprite({id:`floor_${serial++}`,anchor:[x,z],level:li,kind:'floor',walk:model.walkable(project,n),place:t.place,layer:model.walkable(project,n)?'ground':'noaccess',box:[[-.5,-.01,-.5],[.5,0,.5]],decorGroup:t.decorGroup||null,...(surfaceMaterial(t.material)?{faces:()=>[{vertices:[[x-.5,z-.5,0],[x+.5,z-.5,0],[x+.5,z+.5,0],[x-.5,z+.5,0]],attrs:{fill:surfaceMaterial(t.material).color,'data-texture':t.material,'data-floor-texture':'true'}}]}:{floorImage:`assets/floor-${t.material||'blank'}-1x1.png`})});
  }
  for(const w of Object.values(l.walls).filter(w=>w.kind==='fence'&&!w.gate)){const shadow=clipGroundShadows(geo.fenceShadowFaces(w,geo.fencePostOwners(w,Object.values(l.walls))),l.tiles,holes);if(shadow.length)await sprite({id:`shadow_${serial++}`,anchor:[w.x,w.z],level:li,kind:'shadow',layer:'ground',faces:()=>shadow});}
- for(const w of Object.values(l.walls)){const contact=wallContactShadows(l,holes,[w]);
- if(contact.length)await sprite({id:`contact_${serial++}`,anchor:[w.x,w.z],level:li,kind:'shadow',layer:'ground',faces:()=>contact});}
+ const contacts=wallContactShadows(l,holes);
+ for(const contact of contacts){const [x,z]=contact.vertices[0];await sprite({id:`contact_${serial++}`,anchor:[Math.round(x),Math.round(z)],level:li,kind:'shadow',layer:'ground',faces:()=>[contact]});}
  const corners=geo.wallCorners(l.walls);
  for(const w of Object.values(l.walls)){
   const [a,b]=geo.wallEnds(w),x=w.x,z=w.z;
@@ -125,7 +136,7 @@ for(const [i,s]of project.stairs.entries())for(const [a,b,side,other]of [[s.a,s.
  zones.push(`<zone id="lw_stair_${i}_${side}" type="portal" link="lw_stair_${i}_${other}" bounds="${a.x-.45},${a.z+levelOffsets[li]-.45},${a.axis==='x'?(a.width||2)-.1:.9},${a.axis==='z'?(a.width||2)-.1:.9}" angle="${a.angle||0}"/>`);
 }
 const spawn=project.spawn,si=project.levels.findIndex(l=>l.id===spawn.level);
-const contract={version:2,decorVariantVersion:2,gateAnimation:{frames:9,durationMs:480,radius:1.35},origin:NATIVE_ORIGIN,levelOffsets,rooms,landings,levels:project.levels.map(l=>({id:l.id,walls:Object.fromEntries(Object.entries(l.walls).map(([key,w])=>[key,{...w,facing:geo.wallFacing(w,l.tiles)}]))})),lighting:{daylight:project.daylight||null,levels:project.levels.map(l=>(l.items||[]).filter(i=>i.light).slice(0,4).map(i=>({x:i.x,z:i.z,...i.light})))},decor:build.decor};
+const contract={surfaces:Object.fromEntries(manifest.filter(m=>m.surfaceFrames?.length).map(m=>[m.id,m.surfaceFrames])),version:2,decorVariantVersion:2,gateAnimation:{frames:9,durationMs:480,radius:1.35},origin:NATIVE_ORIGIN,levelOffsets,rooms,landings,levels:project.levels.map(l=>({id:l.id,walls:Object.fromEntries(Object.entries(l.walls).map(([key,w])=>[key,{...w,facing:geo.wallFacing(w,l.tiles)}]))})),lighting:{daylight:project.daylight||null,levels:project.levels.map(l=>(l.items||[]).filter(i=>i.light).slice(0,4).map(i=>({x:i.x,z:i.z,...i.light})))},decor:build.decor};
 const xml=`<space.Space id="@MODEL_ID@" studioFormat="2" name="${escape(project.name)}" desc="LittleWorlds Space Studio test import" diagonal="true" spawn="${spawn.x},0,${spawn.z+levelOffsets[si]}" spawnAngle="90"><studio>${escape(JSON.stringify(contract))}</studio><layers><layer id="main" sortMethod="accurate" gridValue="9"/><layer id="ground" gridValue="1"/><layer id="noaccess" gridValue="0"/></layers><sprites>${[...instances].map(([id,layers])=>`<sprite source="${prefix+id}.xml"><instances>${[...layers].map(([layer,placements])=>`<layerref id="${layer}">${placements.join('')}</layerref>`).join('')}</instances></sprite>`).join('')}</sprites><zones>${zones.join('')}</zones></space.Space>`;
 put('model.xml',xml);
 const native={format:'lw-native-assets',version:2,decorVariantVersion:2,origin:NATIVE_ORIGIN,levelOffsets,rooms,coverage,gateBehavior:'proximity-swing',manifest,files};
@@ -140,5 +151,5 @@ export function clipFacesToCell(faces,x,z){
 }
 export const browserRasterizer={
  async loadFloorImage(path){const response=await fetch(new URL(path,import.meta.url));if(!response.ok)throw Error(`Missing floor texture: ${path}`);return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;response.blob().then(blob=>reader.readAsDataURL(blob),reject);});},
- async rasterize(svg){const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));try{const image=new Image();await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('Could not render an export asset.'));image.src=url;});const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const context=canvas.getContext('2d');context.drawImage(image,0,0);return canvas.toDataURL('image/png').split(',')[1];}finally{URL.revokeObjectURL(url);}},
+ async rasterize(svg){const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));try{const image=new Image();await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('Could not render an export asset.'));image.src=url;});const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const context=canvas.getContext('2d');context.drawImage(image,0,0);return await compressPNGBase64(canvas.toDataURL('image/png').split(',')[1]);}finally{URL.revokeObjectURL(url);}},
 };

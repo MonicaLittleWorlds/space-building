@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {wallFaces} from './architecture.mjs';
-import {wallCorners,wallCornerFaces} from './geometry.mjs';
+import {wallCorners,wallCornerFaces,KIT} from './geometry.mjs';
 import {wallContactShadows,wallCornerAmbientShadows} from './room-shading.mjs';
 import {cutProfile} from './rooms.mjs';
 
@@ -20,10 +20,32 @@ test('wall base and joined corner shade while the doorway stays open',()=>{
 });
 test('contact bands reach the floor and respect floor holes',()=>{
   const a=wall('x',0,0),level={tiles:{'0,0':{}},walls:{'x:0,0':a},rooms:[{kind:'indoor',x:0,z:0,width:1,depth:1}]};
-  assert.equal(wallContactShadows(level).length,32);
+  assert.equal(wallContactShadows(level).length,1);
+  assert.ok(wallContactShadows(level)[0].attrs['data-ambient-gradient']);
   assert.equal(wallContactShadows(level,new Set(['0,0'])).length,0);
 });
-test('collapsed wall stays low beside an upright wall',()=>{
+test('collapsed wall slopes up only to an upright neighbour',()=>{
   const low=wall('x',0,0),upright=wall('x',0,1);
-  assert.deepEqual(cutProfile(low,{'x:0,0':low,'x:0,1':upright},new Set(['x:0,0'])),[[0,26],[1,26]]);
+  assert.deepEqual(cutProfile(low,{'x:0,0':low,'x:0,1':upright},new Set(['x:0,0'])),[[0,26],[.6,26],[1,KIT.wallHeight]]);
+  assert.deepEqual(cutProfile(low,{'x:0,0':low,'x:0,1':upright},new Set(['x:0,0','x:0,1'])),[[0,26],[1,26]]);
+});
+
+test('a wall joining from behind does not shade the front face in any view',()=>{
+ const a=wall('x',0,0),behind=wall('z',-1,0),level={id:'floor-1',tiles:{'0,0':{}},walls:{a,behind},rooms:[]};
+ const corners=wallCorners(level.walls);
+ for(let rotation=0;rotation<4;rotation++){
+  const faces=wallFaces(a,{level,rotation,corners});
+  const shaded=faces.some(f=>f.attrs?.['data-part']==='wall-corner-ambient');
+  assert.equal(shaded,rotation>=2);
+ }
+});
+
+test('a straight wall exports one floor gradient without overlapping tile strips',()=>{
+ const walls=Object.fromEntries([0,1,2].map(z=>[z,wall('x',0,z)]));
+ const tiles=Object.fromEntries([0,1,2].map(z=>[`0,${z}`,{}]));
+ const faces=wallContactShadows({walls,tiles});
+ assert.equal(faces.length,1);
+ const zs=faces[0].vertices.map(p=>p[1]);
+ assert.equal(Math.min(...zs),-.5);assert.equal(Math.max(...zs),2.5);
+ assert.equal(faces[0].attrs.stroke,'none');
 });
