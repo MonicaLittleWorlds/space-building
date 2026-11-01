@@ -57,12 +57,12 @@ export async function openDaylightView(project,active,onSave,options={}){
   for(const [mat,g]of groups){const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(g.positions,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(g.uv,2));geometry.computeVertexNormals();const mesh=new THREE.Mesh(geometry,mat);mesh.castShadow=true;mesh.receiveShadow=true;content.add(mesh);}
   const box=new THREE.Box3().setFromObject(content);if(box.isEmpty()){center.set(0,0,0);span=10;}else{box.getCenter(center);const size=box.getSize(new THREE.Vector3());span=Math.max(size.x,size.z)*.85+size.y+3;}
   geometryCenter.copy(center);const extent=Math.max(10,span);Object.assign(sun.shadow.camera,{left:-extent,right:extent,top:extent,bottom:-extent,near:1,far:150});sun.shadow.camera.updateProjectionMatrix();
-  status.textContent=data.warnings.join(' ')||'Live shared materials · existing game export retained.';moveCamera();light();dialog.dataset.ready='true';
+  status.textContent=data.warnings.join(' ')||'Live WebGL preview. The native game uses the saved sun and wall lights with its own shadow rendering.';moveCamera();light();dialog.dataset.ready='true';
  }
  for(const input of dialog.querySelectorAll('[data-setting]')){input.value=settings[input.dataset.setting];input.oninput=()=>{settings={...settings,[input.dataset.setting]:Number(input.value)};light();};}
  levelSelect.onchange=loadLevel;dialog.querySelector('[data-action=cutaway]').onchange=loadLevel;
  dialog.querySelector('[data-action=rotate]').onclick=()=>{rotation=(rotation+1)%4;loadLevel();};dialog.querySelector('[data-action=fit]').onclick=loadLevel;
- dialog.querySelector('[data-action=save]').onclick=()=>{onSave(daylightSettings(settings));status.textContent='Lighting saved to this project. Game export still uses the native renderer.';};
+ dialog.querySelector('[data-action=save]').onclick=()=>{onSave(daylightSettings(settings));status.textContent='Lighting saved. Native game shadows can look different from this WebGL preview.';};
  if(!options.mount){host.onwheel=e=>{e.preventDefault();span=Math.max(2,Math.min(200,span*Math.exp(e.deltaY*.001)));resize();};
  host.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY};host.setPointerCapture(e.pointerId);};host.onpointerup=()=>{drag=null;};host.onpointermove=e=>{if(!drag)return;const dx=(e.clientX-drag.x)*span/host.clientHeight,dy=(e.clientY-drag.y)*span/host.clientHeight;const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);center.addScaledVector(right,-dx).addScaledVector(up,dy);drag={x:e.clientX,y:e.clientY};moveCamera();light();};
  }
