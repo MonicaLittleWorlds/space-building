@@ -14,6 +14,50 @@ export function shadeArchitecture(faces,rotation=0){
 }
 // Fine equal-distance bands approximate a smooth quadratic falloff in shared sprites.
 export const CONTACT_SHADOW_BANDS=32;
+// These overlays are rasterized into the native wall atlases after their
+// material. They follow the actual wall polygons, so openings stay open and
+// a changed wallpaper inherits the same architectural grounding.
+export function wallFaceAmbientShadows(faces,wall,corners=[]){
+ const along=wall.axis==='x'?1:0,ends=wall.axis==='x'?[wall.z-.5,wall.z+.5]:[wall.x-.5,wall.x+.5];
+ const cornerAt=ends.map(v=>corners.some(c=>c.x===(wall.axis==='x'?wall.x-.5:v)&&c.z===(wall.axis==='x'?v:wall.z-.5)));
+ const clip=(vertices,axis,bound,sign)=>{
+  const out=[];for(let i=0;i<vertices.length;i++){const a=vertices[i],b=vertices[(i+1)%vertices.length],da=(a[axis]-bound)*sign,db=(b[axis]-bound)*sign;
+   if(da>=-1e-8)out.push(a);if((da>=0)!==(db>=0)){const t=da/(da-db);out.push(a.map((n,k)=>n+(b[k]-n)*t));}}
+  return out;
+ };
+ const bands=[0,3,7,12,19,28,40],baseAlpha=[.115,.083,.059,.039,.023,.012];
+ const edges=[0,.045,.10,.18],edgeAlpha=[.105,.061,.028],shadows=[];
+ for(const face of faces){
+  const part=face.attrs?.['data-part']||'';
+  if(part&&!['room-cut'].includes(part))continue;
+  if(!face.vertices?.length||!face.vertices.every(p=>Math.abs(p[wall.axis==='x'?0:1]-face.vertices[0][wall.axis==='x'?0:1])<1e-6))continue;
+  const add=(poly,opacity,type)=>{if(poly.length>=3)shadows.push({vertices:poly,attrs:{fill:'#101b21',opacity,stroke:'none','pointer-events':'none','data-part':type}});};
+  for(let i=0;i<baseAlpha.length;i++)add(clip(clip(face.vertices,2,bands[i],1),2,bands[i+1],-1),baseAlpha[i],'wall-base-ambient');
+  for(let end=0;end<2;end++)if(cornerAt[end])for(let i=0;i<edgeAlpha.length;i++){
+   const direction=end===0?1:-1,origin=ends[end];
+   add(clip(clip(face.vertices,along,origin+direction*edges[i],direction),along,origin+direction*edges[i+1],-direction),edgeAlpha[i],'wall-corner-ambient');
+  }
+ }
+ return shadows;
+}
+export function wallCornerAmbientShadows(faces,corner){
+ const shadows=[];
+ for(const face of faces){
+  const part=face.part||face.attrs?.['data-part'];
+  if(!/^side-/.test(part||''))continue;
+  const axis=part==='side-x'?1:0,mid=corner[axis===0?'x':'z'];
+  for(const side of [-1,1])for(const [inner,outer,opacity]of [[0,.02,.16],[.02,.04,.12],[.04,.06,.075]]){
+   const poly=face.vertices.filter(()=>true).map(p=>p.slice());
+   const clip=(vertices,bound,sign)=>{const out=[];for(let i=0;i<vertices.length;i++){
+    const a=vertices[i],b=vertices[(i+1)%vertices.length],da=(a[axis]-bound)*sign,db=(b[axis]-bound)*sign;
+    if(da>=-1e-8)out.push(a);if((da>=0)!==(db>=0)){const t=da/(da-db);out.push(a.map((n,k)=>n+(b[k]-n)*t));}
+   }return out;};
+   const strip=clip(clip(poly,mid+side*inner,side),mid+side*outer,-side);
+   if(strip.length>=3)shadows.push({vertices:strip,attrs:{fill:'#101b21',opacity,stroke:'none','pointer-events':'none','data-part':'wall-corner-ambient'}});
+  }
+ }
+ return shadows;
+}
 export function wallContactShadows(level,holes=new Set(),walls=Object.values(level.walls)){
  const faces=[];
  for(const w of walls){
@@ -23,13 +67,13 @@ export function wallContactShadows(level,holes=new Set(),walls=Object.values(lev
    if(!level.tiles[cell]||holes.has(cell))continue;
    const edge=w.axis==='x'?w.x-.5:w.z-.5,start=w.axis==='x'?w.z-.5:w.x-.5;
    const indoor=(level.rooms||[]).some(r=>r.kind==='indoor'&&x>=r.x&&z>=r.z&&x<r.x+r.width&&z<r.z+r.depth);
-   const spread=indoor?.25:.48;
+   const spread=indoor?.34:.48;
    // Begin at the visible wall face; centerline contact was hidden inside its thickness.
    const wallFaceOffset=.06;
    for(let band=0;band<CONTACT_SHADOW_BANDS;band++){
     const fraction=1-band/CONTACT_SHADOW_BANDS;
-    const previous=.24*(band/CONTACT_SHADOW_BANDS)**2;
-    const target=.24*((band+1)/CONTACT_SHADOW_BANDS)**2;
+    const previous=.32*(band/CONTACT_SHADOW_BANDS)**2;
+    const target=.32*((band+1)/CONTACT_SHADOW_BANDS)**2;
     const opacity=(target-previous)/(1-previous);
     const width=spread*fraction;
     const point=(u,d)=>w.axis==='x'?[edge+sign*(wallFaceOffset+d),start+u,.015]:[start+u,edge+sign*(wallFaceOffset+d),.015];

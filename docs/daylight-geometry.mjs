@@ -16,7 +16,7 @@ export function daylightGeometry(project,levelId,{rotation:cameraRotation=0,cuta
  const wells=project.stairs.filter(s=>stairLevels(project,s).upper.level===levelId).map(s=>stairwell(project,s,0)).filter(Boolean),holes=new Set(wells.flatMap(w=>w.cells.map(c=>`${c.x},${c.z}`)));
  function add(face,material,kind='wall'){
   const v=face.vertices,a=face.attrs||{},part=a['data-part']||face.part||'';
-  if(v.length<3||/grain|mortar|vein|chip|board-joint|masonry-face|masonry-bevel|masonry-undercut|timber-board|board-bevel|reflection/.test(part))return;
+  if(v.length<3||/ambient|grain|mortar|vein|chip|board-joint|masonry-face|masonry-bevel|masonry-undercut|timber-board|board-bevel|reflection/.test(part))return;
   const id=v.map(p=>p.map(n=>Math.round(n*1e6)).join(',')).sort().join(';');if(seen.has(id))return;seen.add(id);
   const horizontal=v.every(p=>Math.abs((p[2]||0)-(v[0][2]||0))<1e-6),axis=horizontal?'floor':v.every(p=>Math.abs(p[0]-v[0][0])<1e-6)?'x':'z';
   const color=a.fill||face.color||'#d3d7c9',light=Number(a['data-surface-light'])||1;
