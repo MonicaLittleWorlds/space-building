@@ -82,6 +82,7 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
 }
 function unlitFenceFaces(w,rotation=0,posts=[true,true]){
  if(posts.insets)return fitFenceConnection(unlitFenceFaces(w,rotation,Array.from(posts)),w,posts);
+  if(w.fenceStyle==='hedge'){const [a,b]=wallEnds(w),normal=w.axis==='x'?[1,0]:[0,1],builder=meshBuilder((u,v,h)=>[a[0]+(b[0]-a[0])*u+normal[0]*v,a[1]+(b[1]-a[1])*u+normal[1]*v,h],rotation,{top:'#4a7336',side:'#345a26',end:'#345a26'});builder.box(-.012,1.012,-.13,.13,0,132,0,132,'hedge');return builder.faces.map(f=>({...f,attrs:{fill:f.color,'data-texture':'legacy-hedge'}}));}
   if(isModelFence(w.fenceStyle))return modelFenceFaces(w,rotation,posts);
   if(w.gate){
     const [a,b]=wallEnds(w),du=[b[0]-a[0],b[1]-a[1]],normal=w.axis==='x'?[1,0]:[0,1];

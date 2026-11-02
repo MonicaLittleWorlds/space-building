@@ -1,10 +1,12 @@
+import {ensureExteriorFinishes} from './exterior-finishes.mjs';
+import {ensureGroundLot} from './ground-lot.mjs';
 import {parseProject,validate,walkable,canPlace,blocked,triggerCells,key} from './model.mjs';
 import {decorManifest,ensureDecor} from './decor.mjs';
 import kit from './kit.mjs';
 
 // A portable integration contract; registration in the game is a separate step.
 export function buildSpace(input,{legacyDecor=false}={}){
- const project=parseProject(input);if(!legacyDecor)ensureDecor(project);const issues=validate(project);
+ const project=ensureExteriorFinishes(ensureGroundLot(parseProject(input)));if(!legacyDecor)ensureDecor(project);const issues=validate(project);
  for(const l of project.levels){
   if(!Object.keys(l.tiles).length)issues.push(`${l.name}: add floor tiles or remove this empty floor.`);
   for(const t of Object.values(l.tiles))if(!kit.floorMaterials.some(m=>m.id===(t.material||'blank')))issues.push(`${l.name}: unknown floor material.`);

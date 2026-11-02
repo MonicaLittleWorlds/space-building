@@ -1,3 +1,4 @@
+import {glassBlockCaps,glassBlockRelief} from './glass-block-surfaces.mjs';
 import kit from './kit.mjs';
 import {wallCorners,wallCornerFaces,wallSide,fenceFaces,fencePostOwners} from './geometry.mjs';
 import {shadeArchitecture,wallFaceAmbientShadows} from './room-shading.mjs';
@@ -5,7 +6,7 @@ import {surfaceMaterial} from './material-surfaces.mjs';
 import {meshBuilder,KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
 import {cutProfile} from './rooms.mjs';
 
-export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={back:false,fill:'#d3d7c9',opacity:1},cutSelection=new Set()}={}){
+export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={back:false,fill:'#d3d7c9',opacity:1},cutSelection=new Set(),profileOverride=null}={}){
  const active=level.id,faces=[],polygon=(vertices,attrs)=>faces.push({vertices,attrs}),collapsedWall=()=>collapsed,wallPaint=()=>paint;
 function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='door'?[]:corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w),material=paint.material||w.material;
   const attrs={'data-kind':w.kind,'data-level':active,'data-collapsed':collapsed,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-face':back?'back':'front',opacity,'pointer-events':'none'};
@@ -76,7 +77,7 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
   };
   if(w.kind==='fence')return;
   if(collapsed){
-    const profile=cutProfile(w,level.walls,cutSelection),t=KIT.wallThickness/2;
+    const profile=profileOverride||cutProfile(w,level.walls,cutSelection),t=KIT.wallThickness/2;
     const normal=w.axis==='x'?[1,0]:[0,1],side=w.axis==='x'?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];
     const at=(u,height,across=0)=>[a[0]+(b[0]-a[0])*u+normal[0]*across,a[1]+(b[1]-a[1])*u+normal[1]*across,height];
     const heightAt=u=>{for(let i=1;i<profile.length;i++)if(u<=profile[i][0]){const [v,h]=profile[i-1],[q,k]=profile[i];return h+(k-h)*(u-v)/(q-v);}return profile.at(-1)[1];};
@@ -192,7 +193,7 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
   polygon([[capA[0]-offset[0],capA[1]-offset[1],h],[capB[0]-offset[0],capB[1]-offset[1],h],[capB[0]+offset[0],capB[1]+offset[1],h],[capA[0]+offset[0],capA[1]+offset[1],h]],{fill:tintColor(fill,1.10),...attrs,'data-part':'cap'});
   for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,level.walls))polygon(quad(p,p,w.kind==='door'?h*(w.doorStyle==='wide'?.88:w.doorStyle==='arch'?.83:.78):0,h),{fill:tintColor(fill,.70),...attrs,'data-part':'end',...(surfaceMaterial(material)?{'data-texture':material}:{})});
 }
- draw(w,corners);faces.push(...wallFaceAmbientShadows(faces,w,corners));return shadeArchitecture(faces,rotation);
+ draw(w,corners);faces.push(...wallFaceAmbientShadows(faces,w,corners));return shadeArchitecture(glassBlockCaps(glassBlockRelief(faces,paint.material||w.material,rotation),paint.material||w.material),rotation);
 }
 
 // Static architecture seen through a stair opening belongs to the lower floor.

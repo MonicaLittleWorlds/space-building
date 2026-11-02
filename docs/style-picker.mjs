@@ -8,7 +8,7 @@ const esc=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').
 export function styleThumbnail(kind,value,span=1){
  if(kind==='fence'&&isModelFence(value))return modelFenceThumbnail(value);
  if(kind==='wall'){const m=kit.wallMaterials.find(m=>m.id===value);if(m?.texture)return m.texture;}
- if(kind==='floor')return `assets/floor-${value}-1x1.png`;
+ if(kind==='floor')return kit.floorMaterials.find(m=>m.id===value)?.texture||`assets/floor-${value}-1x1.png`;
  const key=kind+':'+value+':'+span;if(cache.has(key))return cache.get(key);
  let faces;
  if(kind==='stair')faces=stairFaces({x:0,z:0,axis:'x',width:2,depth:3,rise:-1,style:value},0);

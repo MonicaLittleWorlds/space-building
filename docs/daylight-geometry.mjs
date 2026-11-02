@@ -1,4 +1,6 @@
 import kit from './kit.mjs';
+import {wallFaceMaterial} from './room-finishes.mjs';
+import {glassBlockCaps} from './glass-block-surfaces.mjs';
 import {wallFaces} from './architecture.mjs';
 import {wallCorners,wallCornerFaces,wallFacing,wallSide,fenceFaces,fencePostOwners,stairFaces,stairLevels,stairwell,itemFaces} from './geometry.mjs';
 export const HEIGHT_UNIT=Math.sqrt(6144);
@@ -16,23 +18,29 @@ export function daylightGeometry(project,levelId,{rotation:cameraRotation=0,cuta
  const wells=project.stairs.filter(s=>stairLevels(project,s).upper.level===levelId).map(s=>stairwell(project,s,0)).filter(Boolean),holes=new Set(wells.flatMap(w=>w.cells.map(c=>`${c.x},${c.z}`)));
  function add(face,material,kind='wall'){
   const v=face.vertices,a=face.attrs||{},part=a['data-part']||face.part||'';
-  if(v.length<3||/ambient|grain|mortar|vein|chip|board-joint|masonry-face|masonry-bevel|masonry-undercut|timber-board|board-bevel|reflection/.test(part))return;
+  if(v.length<3||(/ambient|grain|mortar|vein|chip|board-joint|masonry-face|masonry-bevel|masonry-undercut|timber-board|board-bevel|reflection/.test(part)&&part!=='glass-front-reflection'))return;
   const id=v.map(p=>p.map(n=>Math.round(n*1e6)).join(',')).sort().join(';');if(seen.has(id))return;seen.add(id);
   const horizontal=v.every(p=>Math.abs((p[2]||0)-(v[0][2]||0))<1e-6),axis=horizontal?'floor':v.every(p=>Math.abs(p[0]-v[0][0])<1e-6)?'x':'z';
   const color=a.fill||face.color||'#d3d7c9',light=Number(a['data-surface-light'])||1;
   const unlit=/^#[a-f0-9]{6}$/i.test(color)?'#'+color.slice(1).match(/../g).map(c=>Math.min(255,Math.round(parseInt(c,16)/light)).toString(16).padStart(2,'0')).join(''):'#d3d7c9';
   if(a['data-sprite'])warnings.add('Model fences retain their existing baked sprite appearance.');
-  faces.push({vertices:v.map(([x,z,h=0])=>[x,h/HEIGHT_UNIT,z]),uv:v.map(p=>worldUV(p,axis)),material:a['data-texture']||material||null,color:unlit,kind,part,opacity:Number(a.opacity??1),sprite:a['data-sprite']||null,basis:a['data-sprite-basis']?.map(([x,z,h=0])=>[x,h/HEIGHT_UNIT,z])});
+  const finish=a['data-texture']||(kind==='floor'?material:null)||null,m=(kind==='floor'?kit.floorMaterials:kit.wallMaterials).find(m=>m.id===finish),period=m?.period||2;
+  const uv=v.map(([x,z,h=0])=>axis==='floor'?[(x+.5)/2,1-(z+.5)/2]:[((axis==='x'?z:x)+.5)/period,h/(m?.fullHeight?3.5*HEIGHT_UNIT:256)]);
+  faces.push({vertices:v.map(([x,z,h=0])=>[x,h/HEIGHT_UNIT,z]),uv,material:finish,color:unlit,kind,part,opacity:Number(a.opacity??1),sprite:a['data-sprite']||null,basis:a['data-sprite-basis']?.map(([x,z,h=0])=>[x,h/HEIGHT_UNIT,z])});
  }
  for(const [id,t]of Object.entries(level.tiles)){if(holes.has(id))continue;const [x,z]=id.split(',').map(Number);add({vertices:[[x-.5,z-.5,0],[x-.5,z+.5,0],[x+.5,z+.5,0],[x+.5,z-.5,0]],color:kit.floorMaterials.find(m=>m.id===t.material)?.color},t.material||'blank','floor');}
  const hidden=new Set(walls.filter(w=>cutaway&&w.kind!=='fence'&&wallSide({...w,facing:wallFacing(w,level.tiles)},cameraRotation)==='back'));
  for(const w of walls)for(let rotation=0;rotation<4;rotation++){
   if(hidden.has(w))continue;
   if(w.kind==='fence'){for(const f of fenceFaces({...w,gateOpen:openGates.includes(`${w.axis}:${w.x},${w.z}`)},rotation,fencePostOwners(w,walls)))if(!f.attrs?.['data-sprite']||rotation===cameraRotation)add(f,null,'fence');continue;}
-  const back=wallSide({...w,facing:wallFacing(w,level.tiles)},rotation)==='back',material=back?(w.exteriorMaterial||w.material):w.material;
+  const material=wallFaceMaterial(level,w,rotation);
   for(const f of wallFaces(w,{level,rotation,corners,collapsed:collapsed.includes(`${w.axis}:${w.x},${w.z}`),cutSelection:new Set(collapsed),paint:{back:false,material,fill:kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9',opacity:1}}))add(f,material||'blank');
  }
- for(const c of corners.filter(c=>!c.walls.every(w=>hidden.has(w))))for(let r=0;r<4;r++)for(const f of wallCornerFaces(c,r))add(f,f.wall?.material||'blank');
+ for(const c of corners.filter(c=>!c.walls.every(w=>hidden.has(w))))for(let r=0;r<4;r++)for(const f of wallCornerFaces(c,r)){
+  const material=f.wall?wallFaceMaterial(level,f.wall,r):'blank',color=kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9';
+  const face={...f,attrs:{...f.attrs,fill:color,'data-part':f.part,...(f.part!=='cap'?{'data-texture':material}:{}),...(material==='lw-glass'?{'data-glass':true}:{})}};
+  for(const part of glassBlockCaps([face],material))add(part,material);
+ }
  for(const s of project.stairs)if(stairLevels(project,s).lower.level===levelId)for(let r=0;r<4;r++)for(const f of stairFaces(stairLevels(project,s).lower,r))add(f,null,'stair');
  for(const well of wells)for(const f of well.faces){
   let vertices=f.vertices;
