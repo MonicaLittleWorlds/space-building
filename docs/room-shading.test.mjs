@@ -13,7 +13,7 @@ test('wall base and joined corner shade while the doorway stays open',()=>{
   assert.ok(faces.some(f=>f.attrs?.['data-part']==='wall-base-ambient'));
   assert.ok(faces.some(f=>f.attrs?.['data-part']==='wall-corner-ambient'));
   const join=wallCorners(level.walls)[0],joinShadows=wallCornerAmbientShadows(wallCornerFaces(join),join);
-  assert.ok(joinShadows.length>=4);
+  assert.equal(joinShadows.length,0,'hidden inside-corner post must not add a shadow strip');
   assert.ok(joinShadows.every(f=>f.vertices.some(p=>p[2]>200)));
   const doorway=wallFaces(door,{level,paint:{fill:'#ddddcc',material:'plaster',opacity:1}});
   assert.ok(doorway.filter(f=>f.attrs?.['data-part']==='wall-base-ambient').every(f=>f.vertices.every(p=>Math.abs(p[1])>.4)));

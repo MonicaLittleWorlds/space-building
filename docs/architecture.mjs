@@ -107,7 +107,13 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
       panel(L-.035,L,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#b3b7a9');panel(R,R+.035,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#e8e2d2');
       const trim=back?fill:'#e5decb',reveal=back?fill:'#8e9285';
       const jambTop=w.doorStyle==='arch'?h*.66:top;
-      for(const [u,v] of [[L-.042,L-.007],[R+.007,R+.042]]){
+      // Keep the casing inside the opening's sprite footprint. Adjacent wall
+      // sprites otherwise paint over the far jamb when depth sorted in-game.
+      // Line the full wall thickness, including the underside of the lintel.
+      const thickness=KIT.wallThickness;
+      for(const u of [L,R])polygon([at(u,0),at(u,0,-thickness),at(u,jambTop,-thickness),at(u,jambTop)],{...attrs,fill:reveal,'data-part':'door-reveal'});
+      if(w.doorStyle!=='arch')polygon([at(L,top),at(R,top),at(R,top,-thickness),at(L,top,-thickness)],{...attrs,fill:reveal,'data-part':'door-soffit'});
+      for(const [u,v] of [[L+.025,L+.08],[R-.08,R-.025]]){
         moulding(u,v,0,jambTop,trim,.035,'door-casing');
         moulding(u<0?u-.009:u,u<0?v:v+.009,0,15,tintColor(trim,.92),.045,'door-plinth');
       }

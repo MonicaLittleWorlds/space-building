@@ -44,10 +44,15 @@ export function wallCornerFaces(corner,rotation=0){
   // inherits the connected wall on its own axis (including its decor group).
   const sx=[1,1,-1,-1][rotation%4],sz=[1,-1,-1,1][rotation%4];
   const owner=axis=>corner.walls.filter(w=>w.axis===axis).sort((a,b)=>wallRenderHeight(b)-wallRenderHeight(a))[0];
+  // Inside corners are already closed by the two wall planes. A square
+  // joining post must not paint extra strips over those planes. Its side is
+  // visible only when no perpendicular wall extends in front of it.
+  const covered=(axis,sign)=>corner.walls.some(w=>w.axis!==axis&&wallEnds(w).some(p=>(p[axis==='x'?0:1]-(axis==='x'?x:z))*sign>1e-7));
   return [
-    {part:'side-x',wall:owner('x'),vertices:[[x+sx*t,z-t,0],[x+sx*t,z+t,0],[x+sx*t,z+t,h],[x+sx*t,z-t,h]]},
-    {part:'side-z',wall:owner('z'),vertices:[[x-t,z+sz*t,0],[x+t,z+sz*t,0],[x+t,z+sz*t,h],[x-t,z+sz*t,h]]},
-    {part:'cap',wall:corner.walls[0],vertices:[[x-t,z-t,h],[x+t,z-t,h],[x+t,z+t,h],[x-t,z+t,h]]},
+    ...(!covered('x',sx)?[{part:'side-x',wall:owner('x'),vertices:[[x+sx*t,z-t,0],[x+sx*t,z+t,0],[x+sx*t,z+t,h],[x+sx*t,z-t,h]]}]:[]),
+    ...(!covered('z',sz)?[{part:'side-z',wall:owner('z'),vertices:[[x-t,z+sz*t,0],[x+t,z+sz*t,0],[x+t,z+sz*t,h],[x-t,z+sz*t,h]]}]:[]),
+    {part:'cap',wall:owner('x'),vertices:[[x-t,z-t,h],[x+t,z-t,h],[x+t,z+t,h]]},
+    {part:'cap',wall:owner('z'),vertices:[[x-t,z-t,h],[x+t,z+t,h],[x-t,z+t,h]]},
   ];
 }
 export function wallCapEnds(w,corners){const ends=wallEnds(w),t=KIT.wallThickness/2,bleed=.014;return ends.map((p,i)=>{const q=ends[1-i],joined=corners.some(c=>c.x===p[0]&&c.z===p[1]);const inset=joined?t-bleed:-bleed;return [p[0]+Math.sign(q[0]-p[0])*inset,p[1]+Math.sign(q[1]-p[1])*inset];});}
