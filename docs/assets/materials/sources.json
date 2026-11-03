@@ -261,7 +261,10 @@
     "provider": "Poly Haven",
     "source": "https://polyhaven.com/a/herringbone_concrete_tile",
     "license": "CC0-1.0",
-    "sourceSha256": "d332f294027ad8aaa0f9d56b95704ea09ba7bc6988451de40e8304c822ab45b3"
+    "sourceSha256": "d332f294027ad8aaa0f9d56b95704ea09ba7bc6988451de40e8304c822ab45b3",
+    "activeTexture": "lw-herringbone-pavers.png",
+    "processing": "AI-assisted repair of the CC0 source repeat, November 2026; downsampled to 512px and reviewed as a 2x2 repeat.",
+    "outputSha256": "6dd427d03f7bb67ea3adccbbee4bb9015cf985e32d866c0bb6a94915a0f6166c"
   },
   {
     "id": "cc0-woodfloor051",
