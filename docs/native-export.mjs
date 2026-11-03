@@ -1,3 +1,4 @@
+import {walls as tileWalls} from './tile-finishes.mjs';
 import {walls as buildingWalls,floors as buildingFloors} from './building-finishes.mjs';
 import {finishWallSurfaces} from './wall-finishing.mjs';
 import {glassBlockCaps} from './glass-block-surfaces.mjs';
@@ -17,7 +18,7 @@ import {wallFaces,stairwellWallFaces} from './architecture.mjs';
 import {roomLayout} from './rooms.mjs';
 import {splitFace} from './face-order.mjs';
 export const NATIVE_ORIGIN={x:.165,z:-.1356};
-export const STUDIO_WALL_VARIANTS=Object.freeze({studio_plaster:'cc0-beige-wall-001',studio_stone:'cc0-plastered-stone-wall',studio_tile:'cc0-interior-tiles',studio_brick:'cc0-red-brick',studio_timber:'cc0-wood-planks-grey',studio_panel:'legacy-liberty',studio_masonry:'cc0-sandstone-blocks-05',studio_classic_brick:'cc0-red-brick-03',studio_sunflower:'lw-sunflower',studio_cosmic:'lw-cosmic',studio_clover:'lw-clover',studio_velvet:'lw-velvet',studio_orangery:'lw-orangery',studio_deco:'lw-deco',studio_glass:'lw-glass',studio_redlounge:'lw-redlounge',...Object.fromEntries([...approvedWalls,...buildingWalls].map(m=>[m.gameId,m.id]))});
+export const STUDIO_WALL_VARIANTS=Object.freeze({studio_plaster:'cc0-beige-wall-001',studio_stone:'cc0-plastered-stone-wall',studio_tile:'cc0-interior-tiles',studio_brick:'cc0-red-brick',studio_timber:'cc0-wood-planks-grey',studio_panel:'legacy-liberty',studio_masonry:'cc0-sandstone-blocks-05',studio_classic_brick:'cc0-red-brick-03',studio_sunflower:'lw-sunflower',studio_cosmic:'lw-cosmic',studio_clover:'lw-clover',studio_velvet:'lw-velvet',studio_orangery:'lw-orangery',studio_deco:'lw-deco',studio_glass:'lw-glass',studio_redlounge:'lw-redlounge',...Object.fromEntries([...approvedWalls,...buildingWalls,...tileWalls].map(m=>[m.gameId,m.id]))});
 export const STUDIO_FLOOR_VARIANTS=Object.freeze({studio_floor_oak:'cc0-woodfloor051',studio_floor_parquet:'cc0-laminate-floor-02',studio_floor_stone:'cc0-rock-tile-floor',studio_floor_marble:'cc0-marble-01',studio_floor_terracotta:'cc0-brown-floor-tiles',studio_floor_slate:'cc0-worn-tile-floor',studio_floor_grass:'legacy-grass',studio_floor_cinema:'lw-cinema',studio_floor_arcade:'lw-arcade',...Object.fromEntries([...approvedFloors,...buildingFloors].map(m=>[m.gameId,m.id]))});
 const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 const hash=async (text,encoding)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoding==='base64'?Uint8Array.from(atob(text),c=>c.charCodeAt(0)):new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
@@ -51,16 +52,22 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
  if(!cacheKey){cacheKey=JSON.stringify({texturePhase:frames.some(f=>f.polygons.some(p=>p.attrs?.['data-texture']))?textureAnchorPhase(anchor,[...frames.flatMap(f=>f.polygons.map(p=>surfaceMaterial(p.attrs?.['data-texture']))),...Object.values(kind==='floor'?floorVariants:/^(?:wall|door|window|corner|opening)_[0-9]+$/.test(id)?wallVariants:{}).map(surfaceMaterial)]):null,kind,box,walk,place,collapse,decorGroup,exteriorDecorGroup,clip:clip?.map(v=>v.map((n,i)=>i<2?n-anchor[i]:n)),frames:frames.map(f=>({r:f.r,state:f.state,polygons:f.polygons.map(p=>({screen:p.screen.map(v=>v.map(n=>Math.round(n*1e6)/1e6)),gradient:p.attrs?.['data-ambient-gradient']?{...p.attrs['data-ambient-gradient'],origin:projectPoint(p.attrs['data-ambient-gradient'].origin,f.r,anchor).map(n=>Math.round(n*1e6)/1e6),u:projectPoint(p.attrs['data-ambient-gradient'].u,f.r,anchor).map(n=>Math.round(n*1e6)/1e6),v:projectPoint(p.attrs['data-ambient-gradient'].v,f.r,anchor).map(n=>Math.round(n*1e6)/1e6)}:null,attrs:Object.fromEntries(Object.entries(p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4}).filter(([k])=>(!k.startsWith('data-')||k==='data-texture'||k==='data-surface-light'||k==='data-texture-basis'||k==='data-sprite')&&k!=='pointer-events').map(([k,v])=>[k,k==='data-texture-basis'?v.map(p=>projectPoint(p,f.r,anchor).map(n=>Math.round(n*1e6)/1e6)):v]))}))}))});
  if(cache.has(cacheKey)){const cached=cache.get(cacheKey);placeAsset(cached.id);manifest.push({...cached,anchor,level,edge,join});return;}}
  const imageData=floorImage?await textureData(floorImage):null;
- const renderAtlas=async (materialOverride,joinAxis=null)=>{const svgFrames=[],images=new Map(),patterns=new Map();
+ const renderAtlas=async (materialOverride,joinAxis=null,paintMask=false)=>{const svgFrames=[],images=new Map(),patterns=new Map();
  for(let i=0;i<frames.length;i++){
   const f=frames[i];const floorColor=kit.floorMaterials.find(m=>floorImage?.endsWith(`floor-${m.id}-1x1.png`))?.color||'#c1c5b8';let body=floorImage&&!materialOverride?`<g transform="translate(${f.center.join(' ')})"><polygon points="-64,0 0,-32 64,0 0,32" fill="${floorColor}" stroke="${floorColor}" stroke-width="1"/><image preserveAspectRatio="none" href="data:image/png;base64,${imageData}" x="-64" y="-32" width="128" height="64"/></g>`:'';
   const polygons=materialOverride?(kind==='floor'?floorFaces(anchor[0],anchor[1],materialOverride):faces(f.r,f.state,materialOverride)).map(p=>({...p,screen:p.vertices.map(v=>projectPoint(v,f.r,anchor))})):f.polygons;
   for(const [pi,p] of bakeAmbientFaces(polygons).entries()){
    if(joinAxis&&p.wall?.axis!==joinAxis)continue;
-   let attrs=p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4};const m=attrs['data-sprite']?{texture:attrs['data-sprite']}:surfaceMaterial(attrs['data-texture']);
+   let attrs=p.attrs||{fill:p.color,stroke:p.color,'stroke-width':.4};let m=attrs['data-sprite']?{texture:attrs['data-sprite']}:surfaceMaterial(attrs['data-texture']);
+   if(paintMask){
+    const sourceMaterial=surfaceMaterial(attrs['data-texture']);
+    if(sourceMaterial?.paintMask&&!attrs['data-paint-cap'])m={...sourceMaterial,texture:sourceMaterial.paintMask};else m=null;
+    attrs={...attrs,fill:attrs['data-paint-cap']?'white':'black',stroke:attrs['data-paint-cap']?'white':'black','data-surface-light':1};
+    delete attrs['data-ambient-gradient'];
+   }
    if(m){const matrix=wallPattern(p.vertices,v=>projectPoint(v,f.r,anchor),attrs['data-sprite-basis']||attrs['data-texture-basis'],m),patternKey=JSON.stringify([m.texture,matrix,attrs['data-surface-light']||1,m.mirror,m.fullHeight]);let patternId=patterns.get(patternKey);if(!images.has(m.texture)){const data=await textureData(m.texture),id=`image-${images.size}`;images.set(m.texture,{id,svg:`<image id="${id}" href="data:image/${attrs['data-sprite']||m.texture.endsWith('.png')?'png':m.texture.endsWith('.svg')?'svg+xml':'jpeg'};base64,${data}" width="1" height="1" preserveAspectRatio="none"/>`});}if(!patternId){patternId=`surface-${patterns.size}`;patterns.set(patternKey,patternId);body+=`<defs>${wallPatternSVG(patternId,matrix,`#${images.get(m.texture).id}`,undefined,undefined,attrs['data-surface-light'],m)}</defs>`;}attrs={...attrs,fill:`url(#${patternId})`,stroke:`url(#${patternId})`,'stroke-width':2.2,'stroke-linejoin':'round'};}
    if(attrs['data-ambient-gradient']){const id=`ao-${i}-${pi}`;body+=`<defs>${ambientGradientSVG(id,attrs['data-ambient-gradient'],v=>projectPoint(v,f.r,anchor))}</defs>`;attrs={...attrs,fill:`url(#${id})`,stroke:'none'};}
-   if(p.ambient?.length){
+   if(!paintMask&&p.ambient?.length){
     const id=`paint-${i}-${pi}`,rect=`x="${f.x0-2}" y="${f.y0-2}" width="${f.w+4}" height="${f.h+4}"`;
     let paint=`<rect ${rect} fill="${attrs.fill||p.color}"/>`;
     for(const [ai,ao] of p.ambient.entries()){
@@ -81,10 +88,11 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
  if(kind==='floor')for(const [variant,material] of Object.entries(floorVariants))jobs.push([`${id}__${variant}.png`,material,null]);
  if(/^(?:wall|door|window|corner|opening)_[0-9]+$/.test(id)&&['wall','opening','join'].includes(kind))for(const [variant,material] of Object.entries(wallVariants))jobs.push([`${id}__${variant}.png`,material,null]);
  if(kind==='join')for(const axis of ['x','z'])for(const [variant,material] of Object.entries(wallPairs))jobs.push([`${id}__studio_axis_${axis}_${variant}.png`,material,axis]);
+ for(const job of [...jobs])if(surfaceMaterial(job[1])?.paintMask)jobs.push([job[0].replace(/\.png$/, '__mask.png'),job[1],job[2],true]);
  // Decode and compress a bounded group of independent atlases together.
  for(let i=0;i<jobs.length;i+=4){
   const batch=jobs.slice(i,i+4);
-  const results=await Promise.all(batch.map(async([name,material,axis])=>[name,await rasterize(await renderAtlas(material,axis),{name})]));
+  const results=await Promise.all(batch.map(async([name,material,axis,mask])=>[name,await rasterize(await renderAtlas(material,axis,mask),{name})]));
   for(const [name,png] of results)put(name,png,'base64');
  }
 

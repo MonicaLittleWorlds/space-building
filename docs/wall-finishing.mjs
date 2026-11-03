@@ -18,6 +18,7 @@ export function finishWallSurfaces(faces,wall,rotation=0,materialId){
   const m=surfaceMaterial(id),part=attrs['data-part']||face.part;
   if(!w||!m?.wrapSurfaces||!['cap','end'].includes(part))return face;
   return {...face,attrs:{...attrs,'data-texture':id,'data-material':id,
+   ...(part==='cap'&&m.capTexture?{'data-sprite':m.capTexture,'data-paint-cap':!!m.paintMask}:{}),
    'data-texture-basis':part==='cap'?capTextureBasis(w,face.vertices,m):wallEndTextureBasis(w,face.vertices,rotation,m)}};
  });
 }

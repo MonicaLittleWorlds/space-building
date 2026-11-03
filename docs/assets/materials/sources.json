@@ -273,5 +273,40 @@
     "source": "https://ambientcg.com/a/WoodFloor051",
     "license": "CC0-1.0",
     "sourceSha256": "cd20f4039f62ca2b2430b8a4521774572a31ee586babac058a3afe178ed9ef5f"
+  },
+  {
+    "id": "lw-subway",
+    "name": "Glazed Subway Tiles",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Original generated design, 3 November 2026",
+    "sourceSha256": "21b3af78a8f2071c244a2cffe2c44479a88a5df33c75adc80640a75c81b35033"
+  },
+  {
+    "id": "lw-cork",
+    "name": "Seventies Cork",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Original generated design, 3 November 2026",
+    "sourceSha256": "5247971e91d3edace2a8e3e0e2ffefb1e31733124279c337ad2d74a596696264"
+  },
+  {
+    "id": "lw-diner",
+    "name": "Mint Diner Tiles",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Original generated design, 3 November 2026",
+    "sourceSha256": "a58babcbd14a99c2550334a5df57fc6070ffb7f0488b5c8623c1420223ad84ae"
+  },
+  {
+    "id": "lw-breeze",
+    "name": "Clover Breeze Blocks",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Original generated design, 3 November 2026",
+    "sourceSha256": "3e4dcb2be93a1bbbbcb097ffd1abdefb8b0547bd03c13bd0bbdfe75d1490da5f"
+  },
+  {
+    "id": "lw-half_tile",
+    "name": "Paint & Porcelain",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Original generated design, 3 November 2026",
+    "sourceSha256": "a0f23037483bf11cfdf1f1a6cba6dc4f5ca96e9df4b4a48bfe009ced112c9769"
   }
 ]

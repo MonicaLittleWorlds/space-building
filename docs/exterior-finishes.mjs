@@ -1,6 +1,6 @@
 import {roomLayout} from './rooms.mjs';
 import {edgeKey} from './model.mjs';
-export const EXTERIOR_MATERIALS=['cc0-beige-wall-001','cc0-red-brick-03','cc0-sandstone-blocks-05','cc0-wood-planks-grey','cc0-concrete','cc0-castle-wall-slates','cc0-rustic-stone-wall-02','cc0-castle-brick-02-red'];
+export const EXTERIOR_MATERIALS=['cc0-beige-wall-001','cc0-red-brick-03','cc0-sandstone-blocks-05','cc0-wood-planks-grey','cc0-concrete','cc0-castle-wall-slates','cc0-rustic-stone-wall-02','cc0-castle-brick-02-red','cc0-brown-planks-03','cc0-brick-wall-001','cc0-medieval-blocks-03','lw-breeze'];
 // Opted-in lots have an explicit exterior finish, independent of each room.
 export function ensureExteriorFinishes(project,{repaint=false}={}){
  if(!project.exteriorFinish)return project;
