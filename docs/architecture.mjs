@@ -2,7 +2,7 @@ import {glassBlockCaps,glassBlockRelief} from './glass-block-surfaces.mjs';
 import kit from './kit.mjs';
 import {wallCorners,wallCornerFaces,wallSide,fenceFaces,fencePostOwners} from './geometry.mjs';
 import {shadeArchitecture,wallFaceAmbientShadows} from './room-shading.mjs';
-import {surfaceMaterial} from './material-surfaces.mjs';
+import {surfaceMaterial,wallEndTextureBasis} from './material-surfaces.mjs';
 import {meshBuilder,KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
 import {cutProfile} from './rooms.mjs';
 
@@ -199,7 +199,7 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
   polygon([[capA[0]-offset[0],capA[1]-offset[1],h],[capB[0]-offset[0],capB[1]-offset[1],h],[capB[0]+offset[0],capB[1]+offset[1],h],[capA[0]+offset[0],capA[1]+offset[1],h]],{fill:tintColor(fill,1.10),...attrs,'data-part':'cap'});
   for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,level.walls))polygon(quad(p,p,w.kind==='door'?h*(w.doorStyle==='wide'?.88:w.doorStyle==='arch'?.83:.78):0,h),{fill:tintColor(fill,.70),...attrs,'data-part':'end',...(surfaceMaterial(material)?{'data-texture':material}:{})});
 }
- draw(w,corners);faces.push(...wallFaceAmbientShadows(faces,w,corners));return shadeArchitecture(glassBlockCaps(glassBlockRelief(faces,paint.material||w.material,rotation),paint.material||w.material),rotation);
+ draw(w,corners);for(const face of faces){if(face.attrs?.['data-part']==='end'&&['lw-moonbase','lw-orbit-lounge','moonbase','orbit-lounge'].includes(paint.material||w.material))face.attrs['data-texture-basis']=wallEndTextureBasis(w,face.vertices,rotation,surfaceMaterial(paint.material||w.material));}faces.push(...wallFaceAmbientShadows(faces,w,corners));return shadeArchitecture(glassBlockCaps(glassBlockRelief(faces,paint.material||w.material,rotation),paint.material||w.material),rotation);
 }
 
 // Static architecture seen through a stair opening belongs to the lower floor.

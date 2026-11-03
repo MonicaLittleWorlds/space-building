@@ -1,4 +1,5 @@
 import {shadeArchitecture} from './room-shading.mjs';
+import {hedgeFaces,hedgeJoins} from './hedge-geometry.mjs';
 import {isModelFence,modelFenceFaces} from './fence-models.mjs';
 // Original LW kit dimensions expressed in the game's logical grid.
 export const KIT={halfWidth:64,halfHeight:32,wallHeight:3.5*Math.sqrt(2*64**2)*Math.cos(Math.PI/6),wallThickness:.12,fenceHeight:92};
@@ -86,8 +87,8 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
  }),rotation);
 }
 function unlitFenceFaces(w,rotation=0,posts=[true,true]){
+ if(w.fenceStyle==='hedge')return fitFenceConnection(hedgeFaces(w,rotation,posts.hedgeJoins),w,posts);
  if(posts.insets)return fitFenceConnection(unlitFenceFaces(w,rotation,Array.from(posts)),w,posts);
-  if(w.fenceStyle==='hedge'){const [a,b]=wallEnds(w),normal=w.axis==='x'?[1,0]:[0,1],builder=meshBuilder((u,v,h)=>[a[0]+(b[0]-a[0])*u+normal[0]*v,a[1]+(b[1]-a[1])*u+normal[1]*v,h],rotation,{top:'#4a7336',side:'#345a26',end:'#345a26'});builder.box(-.012,1.012,-.13,.13,0,132,0,132,'hedge');return builder.faces.map(f=>({...f,attrs:{fill:f.color,'data-texture':'legacy-hedge'}}));}
   if(isModelFence(w.fenceStyle))return modelFenceFaces(w,rotation,posts);
   if(w.gate){
     const [a,b]=wallEnds(w),du=[b[0]-a[0],b[1]-a[1]],normal=w.axis==='x'?[1,0]:[0,1];
@@ -298,6 +299,7 @@ export function fencePostOwners(w,walls){const owners=wallEnds(w).map(p=>{
  // Keep the post outside a perpendicular wall, including its projecting cap.
  const offsets=wallEnds(w).map(p=>walls.some(o=>['wall','window'].includes(o.kind)&&o.axis!==w.axis&&wallEnds(o).every(q=>Math.abs(q[o.axis==='x'?0:1]-p[o.axis==='x'?0:1])<1e-8)&&(()=>{const e=wallEnds(o),i=o.axis==='x'?1:0;return p[i]>=Math.min(e[0][i],e[1][i])-1e-8&&p[i]<=Math.max(e[0][i],e[1][i])+1e-8;})())?KIT.wallThickness/2+.10:0);
  if(offsets.some(Boolean))Object.defineProperty(owners,'insets',{value:offsets});
+ if(w.fenceStyle==='hedge')Object.defineProperty(owners,'hedgeJoins',{value:hedgeJoins(w,walls)});
  return owners;
 }
 function fitFenceConnection(faces,w,posts){
