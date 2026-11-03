@@ -1,3 +1,4 @@
+import {finishWallSurfaces} from './wall-finishing.mjs';
 import kit from './kit.mjs';
 import {wallFaceMaterial} from './room-finishes.mjs';
 import {glassBlockCaps} from './glass-block-surfaces.mjs';
@@ -39,7 +40,7 @@ export function daylightGeometry(project,levelId,{rotation:cameraRotation=0,cuta
  for(const c of corners.filter(c=>!c.walls.every(w=>hidden.has(w))))for(let r=0;r<4;r++)for(const f of wallCornerFaces(c,r)){
   const material=f.wall?wallFaceMaterial(level,f.wall,r):'blank',color=kit.wallMaterials.find(m=>m.id===material)?.color||'#d3d7c9';
   const face={...f,attrs:{...f.attrs,fill:color,'data-part':f.part,...(f.part!=='cap'?{'data-texture':material}:{}),...(material==='lw-glass'?{'data-glass':true}:{})}};
-  for(const part of glassBlockCaps([face],material))add(part,material);
+  for(const part of glassBlockCaps(finishWallSurfaces([face],f.wall,r,material),material))add(part,material);
  }
  for(const s of project.stairs)if(stairLevels(project,s).lower.level===levelId)for(let r=0;r<4;r++)for(const f of stairFaces(stairLevels(project,s).lower,r))add(f,null,'stair');
  for(const well of wells)for(const f of well.faces){
