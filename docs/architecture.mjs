@@ -9,9 +9,25 @@ import {cutProfile} from './rooms.mjs';
 
 export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={back:false,fill:'#d3d7c9',opacity:1},cutSelection=new Set(),profileOverride=null}={}){
  const material=paint.material||w.material;
- if(surfaceMaterial(material)?.structure==='hedge'&&!paint.hedgeGeometry){
+ if(surfaceMaterial(material)?.structure==='hedge'){
   if(w.kind==='door')return [];
-  return wallFaces({...w,kind:'wall'},{level,rotation,corners,collapsed:true,paint:{...paint,hedgeGeometry:true},cutSelection,profileOverride:[[0,collapsed?26:132],[1,collapsed?26:132]]});
+  // A replacement hedge is a closed solid, not an inset wall panel. Wall
+  // corner posts may belong to the adjoining room (and have another height
+  // or finish), so the hedge must own its complete ends and top itself.
+  const ends=wallEnds(w),t=KIT.wallThickness/2,axis=w.axis==='x'?0:1,along=1-axis;
+  const side=axis===0?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];
+  const h=collapsed?26:132,fill=paint.fill||'#345a26';
+  const junction=p=>corners.some(c=>Math.abs(c.x-p[0])<1e-7&&Math.abs(c.z-p[1])<1e-7);
+  const bounds=ends.map((p,i)=>p[along]+(i?1:-1)*(junction(p)?t:.014));
+  const point=(u,d,y)=>{const p=[0,0,y];p[axis]=ends[0][axis]+d;p[along]=u;return p;};
+  const attrs={fill,opacity:paint.opacity??1,'data-kind':'wall','data-level':level.id,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-texture':material,'data-collapsed':collapsed,'pointer-events':'none'};
+  const face=(vertices,part)=>({vertices,attrs:{...attrs,'data-part':part}});
+  const [lo,hi]=bounds;
+  const faces=[face([point(lo,side*t,0),point(hi,side*t,0),point(hi,side*t,h),point(lo,side*t,h)],'room-cut'),face([point(lo,-t,h),point(hi,-t,h),point(hi,t,h),point(lo,t,h)],'cap')];
+  for(let i=0;i<2;i++)if(wallEndVisible(w,i,rotation)){
+   const u=bounds[i];faces.push(face([point(u,-t,0),point(u,t,0),point(u,t,h),point(u,-t,h)],'end'));
+  }
+  return shadeArchitecture(finishWallSurfaces(faces,w,rotation,material),rotation);
  }
  const active=level.id,faces=[],polygon=(vertices,attrs)=>faces.push({vertices,attrs}),collapsedWall=()=>collapsed,wallPaint=()=>paint;
 function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='door'?[]:corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w),material=paint.material||w.material;
