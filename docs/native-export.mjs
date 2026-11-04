@@ -1,3 +1,4 @@
+import {splitExportShadow} from './export-shadow-tiles.mjs';
 import {walls as revivalWalls,floors as revivalFloors} from './revival-finishes.mjs';
 import {walls as modernWalls} from './modern-finishes.mjs';
 import {walls as tileWalls} from './tile-finishes.mjs';
@@ -24,7 +25,7 @@ export const STUDIO_WALL_VARIANTS=Object.freeze({studio_plaster:'cc0-beige-wall-
 export const STUDIO_FLOOR_VARIANTS=Object.freeze({studio_floor_oak:'cc0-woodfloor051',studio_floor_parquet:'cc0-laminate-floor-02',studio_floor_stone:'cc0-rock-tile-floor',studio_floor_marble:'cc0-marble-01',studio_floor_terracotta:'cc0-brown-floor-tiles',studio_floor_slate:'cc0-worn-tile-floor',studio_floor_grass:'legacy-grass',studio_floor_cinema:'lw-cinema',studio_floor_arcade:'lw-arcade',...Object.fromEntries([...approvedFloors,...buildingFloors,...revivalFloors].map(m=>[m.gameId,m.id]))});
 const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 const hash=async (text,encoding)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoding==='base64'?Uint8Array.from(atob(text),c=>c.charCodeAt(0)):new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
-export async function createNativePackage(input,{loadFloorImage,rasterize,onProgress=()=>{},wallVariants=STUDIO_WALL_VARIANTS,floorVariants=STUDIO_FLOOR_VARIANTS}){
+export async function createNativePackage(input,{loadFloorImage,rasterize,onProgress=()=>{},wallVariants=STUDIO_WALL_VARIANTS,floorVariants=STUDIO_FLOOR_VARIANTS,assetFilter=null}){
 const wallPairs={original:null,...Object.fromEntries(Object.entries(wallVariants).map(([k,v])=>[k.slice(7),v]))};
 const build=buildSpace(openSpaceFile(input)),project=build.project,name='@MODEL@',prefix=`spaces/models/${name}/`,files={};
 const put=(name,content,encoding='utf8')=>{files[name]={encoding,content};};
@@ -92,8 +93,9 @@ async function sprite({id,anchor,level,faces,box,kind='visual',walk=false,place=
  if(kind==='join')for(const axis of ['x','z'])for(const [variant,material] of Object.entries(wallPairs))jobs.push([`${id}__studio_axis_${axis}_${variant}.png`,material,axis]);
  for(const job of [...jobs])if(surfaceMaterial(job[1])?.paintMask)jobs.push([job[0].replace(/\.png$/, '__mask.png'),job[1],job[2],true]);
  // Decode and compress a bounded group of independent atlases together.
- for(let i=0;i<jobs.length;i+=4){
-  const batch=jobs.slice(i,i+4);
+ const renderJobs=assetFilter?jobs.filter(([name])=>assetFilter(name)):jobs;
+ for(let i=0;i<renderJobs.length;i+=4){
+  const batch=renderJobs.slice(i,i+4);
   const results=await Promise.all(batch.map(async([name,material,axis,mask])=>[name,await rasterize(await renderAtlas(material,axis,mask),{name})]));
   for(const [name,png] of results)put(name,png,'base64');
  }
@@ -125,7 +127,7 @@ for(const [li,l]of project.levels.entries()){
   await sprite({id:`floor_${serial++}`,anchor:[x,z],level:li,kind:'floor',walk:model.walkable(project,n),place:t.place,layer:model.walkable(project,n)?'ground':'noaccess',box:[[-.5,-.01,-.5],[.5,0,.5]],decorGroup:t.decorGroup||null,...(surfaceMaterial(t.material)?{faces:()=>[{vertices:[[x-.5,z-.5,0],[x+.5,z-.5,0],[x+.5,z+.5,0],[x-.5,z+.5,0]],attrs:{fill:surfaceMaterial(t.material).color,'data-texture':t.material,'data-floor-texture':'true'}}]}:{floorImage:`assets/floor-${t.material||'blank'}-1x1.png`})});
  }
  for(const w of Object.values(l.walls).filter(w=>w.kind==='fence'&&!w.gate)){const shadow=clipGroundShadows(geo.fenceShadowFaces(w,geo.fencePostOwners(w,Object.values(l.walls))),l.tiles,holes);if(shadow.length)await sprite({id:`shadow_${serial++}`,anchor:[w.x,w.z],level:li,kind:'shadow',layer:'ground',faces:()=>shadow});}
- const contacts=wallContactShadows(l,holes);
+ const contacts=wallContactShadows(l,holes).flatMap(face=>splitExportShadow(face));
  for(const contact of contacts){const [x,z]=contact.vertices[0];await sprite({id:`contact_${serial++}`,anchor:[Math.round(x),Math.round(z)],level:li,kind:'shadow',layer:'ground',faces:()=>[contact]});}
  const corners=geo.wallCorners(l.walls);
  for(const w of Object.values(l.walls)){
@@ -134,7 +136,9 @@ for(const [li,l]of project.levels.entries()){
   const cutEnds=geo.wallEnds(w).flatMap((p,i)=>Object.values(l.walls).some(other=>other!==w&&['wall','window','door'].includes(other.kind)&&geo.wallEnds(other).some(q=>q[0]===p[0]&&q[1]===p[1])&&(other.axis!==w.axis||!other.collapse||owners(model.edgeKey(other))!==own))?[i===0?'CutLeft':'CutRight']:[]);
   const [a,b]=geo.wallEnds(w),x=w.x,z=w.z;
   const gate=w.kind==='door'||w.gate;
-  const box=gate?null:[[Math.min(a[0],b[0])-x-.04,0,Math.min(a[1],b[1])-z-.04],[Math.max(a[0],b[0])-x+.04,w.kind==='fence'?(w.fenceStyle==='heritage-iron'?1.9:w.fenceStyle==='natural-picket'?1.5:w.fenceStyle==='hedge'?1.7:1.1):3.5,Math.max(a[1],b[1])-z+.04]];
+  // Doorways keep visual bounds for depth sorting, but remain non-blocking
+  // (gridActive=false, no gridEdge). A null volume sorted arches as points.
+  const box=w.gate?null:[[Math.min(a[0],b[0])-x-.04,0,Math.min(a[1],b[1])-z-.04],[Math.max(a[0],b[0])-x+.04,w.kind==='fence'?(w.fenceStyle==='heritage-iron'?1.9:w.fenceStyle==='natural-picket'?1.5:w.fenceStyle==='hedge'?1.7:1.1):3.5,Math.max(a[1],b[1])-z+.04]];
   await sprite({id:`${w.kind}_${serial++}`,anchor:[x,z],level:li,kind:gate?(w.kind==='door'?'opening':'gate'):'wall',box,cutEnds,edge:model.edgeKey(w),decorGroup:w.decorGroup||null,exteriorDecorGroup:w.exteriorDecorGroup||null,collapse:w.collapse&&w.kind!=='fence',faces:(r,state,materialOverride)=>{
    if(w.kind==='fence'){const progress=state==='Up'?0:Number(state.slice(4))/8,gateWall={...w,gateOpen:w.gate&&progress>.5,...(w.gate?{gateProgress:progress}:{})};return [...(w.gate?clipGroundShadows(geo.fenceShadowFaces(gateWall,geo.fencePostOwners(w,Object.values(l.walls))),l.tiles,holes):[]),...geo.fenceFaces(gateWall,r,geo.fencePostOwners(w,Object.values(l.walls)))];}
    const faces=[],polygon=(vertices,attrs)=>faces.push({vertices,attrs});
