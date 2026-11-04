@@ -8,6 +8,11 @@ import {meshBuilder,KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible
 import {cutProfile} from './rooms.mjs';
 
 export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={back:false,fill:'#d3d7c9',opacity:1},cutSelection=new Set(),profileOverride=null}={}){
+ const material=paint.material||w.material;
+ if(surfaceMaterial(material)?.structure==='hedge'&&!paint.hedgeGeometry){
+  if(w.kind==='door')return [];
+  return wallFaces({...w,kind:'wall'},{level,rotation,corners,collapsed:true,paint:{...paint,hedgeGeometry:true},cutSelection,profileOverride:[[0,collapsed?26:132],[1,collapsed?26:132]]});
+ }
  const active=level.id,faces=[],polygon=(vertices,attrs)=>faces.push({vertices,attrs}),collapsedWall=()=>collapsed,wallPaint=()=>paint;
 function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='door'?[]:corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w),material=paint.material||w.material;
   const attrs={'data-kind':w.kind,'data-level':active,'data-collapsed':collapsed,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-face':back?'back':'front',opacity,'pointer-events':'none'};

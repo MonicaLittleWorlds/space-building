@@ -350,5 +350,68 @@
     "provider": "LittleWorlds original AI-assisted material",
     "source": "Approved modern finish, 4 November 2026; neutral master and native game skirting/caps",
     "sourceSha256": "4421f5a3d0b390d86e19080a802b0fd48a0d9314d1b12ed8dca8cf2403d1480b"
+  },
+  {
+    "id": "lw-timber-revival",
+    "name": "Braced Walnut",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "46bb1c90e23e872fb5977b588ea5326290ea760141d8468b75fb54e9e9cfa3b8"
+  },
+  {
+    "id": "lw-decor-hedge",
+    "name": "Atrium Hedge",
+    "provider": "Existing Grand Atrium hedge",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "e3cd95f5571666dcd992e8408b01b08604793854c188472263f698f59ac078b5"
+  },
+  {
+    "id": "lw-mosaic-revival",
+    "name": "Ivory Mosaic",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "ec175730ed571cc2634ecc623381210b1d9964fbcd6fb7892bc4a1e650054c38"
+  },
+  {
+    "id": "lw-checker-revival",
+    "name": "Bistro Checker",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "196e66fb17ef66d32e813354f361e88a12789f28e0833258c23d7f3ffedf5ee9"
+  },
+  {
+    "id": "lw-grand-checker-revival",
+    "name": "Grand Checker",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "196e66fb17ef66d32e813354f361e88a12789f28e0833258c23d7f3ffedf5ee9"
+  },
+  {
+    "id": "lw-carpet-revival",
+    "name": "Honey Loop Carpet",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "11ac66d90e87a996aeec5b0c9ba392d53583e8893842dc246b9256a78b8eeedc"
+  },
+  {
+    "id": "lw-midnight-revival",
+    "name": "Midnight Petal",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "65110e9dbd181317b4d2461ba384380347fec55fbf45e07e4145a1a5b899ce39"
+  },
+  {
+    "id": "lw-octagon-revival",
+    "name": "Pearl Octagons",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "a09af8ead5074f2258df657c078417fc143fcd23c96f5865c919a071334e2d78"
+  },
+  {
+    "id": "lw-paver-revival",
+    "name": "Graphite Basket Pavers",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "November 4 revival decor; revised from user references",
+    "sourceSha256": "5134ce278ba5ab9b46dc9a0f826babd69f2b6b57df0944ea1338e776cc67ab4d"
   }
 ]

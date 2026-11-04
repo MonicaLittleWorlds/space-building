@@ -3,6 +3,8 @@ export function roomAtCell(level,x,z){
  return (level.rooms||[]).find(r=>x>=r.x&&x<r.x+r.width&&z>=r.z&&z<r.z+r.depth);
 }
 export function wallFaceMaterial(level,wall,rotation){
+ const adjacent=[roomAtCell(level,wall.x,wall.z),roomAtCell(level,wall.x-(wall.axis==='x'?1:0),wall.z-(wall.axis==='z'?1:0))];
+ if(wall.material==='lw-decor-hedge'||wall.exteriorMaterial==='lw-decor-hedge'||adjacent.some(r=>r?.wallMaterial==='lw-decor-hedge'))return 'lw-decor-hedge';
  const side=(wall.axis==='x'?[1,1,-1,-1]:[1,-1,-1,1])[((rotation%4)+4)%4];
  const x=wall.x-(wall.axis==='x'&&side<0?1:0),z=wall.z-(wall.axis==='z'&&side<0?1:0);
  const room=roomAtCell(level,x,z);
