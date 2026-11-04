@@ -308,5 +308,47 @@
     "provider": "LittleWorlds original AI-assisted material",
     "source": "Original generated design, 3 November 2026",
     "sourceSha256": "a0f23037483bf11cfdf1f1a6cba6dc4f5ca96e9df4b4a48bfe009ced112c9769"
+  },
+  {
+    "id": "lw-everyday_matte",
+    "name": "Everyday Matte",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Approved modern finish, 4 November 2026; neutral master and native game skirting/caps",
+    "sourceSha256": "e6617d18600155086827105013d394971274f81fc2ed1bb0442bb56130e4ad4b"
+  },
+  {
+    "id": "lw-colour_wash",
+    "name": "Soft Colour Wash",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Approved modern finish, 4 November 2026; neutral master and native game skirting/caps",
+    "sourceSha256": "d32aef011c9e46f14a1f5cbbcbf13417eb9f1d4bdb3d2c3d03a011b26ff72a4d"
+  },
+  {
+    "id": "lw-cloud_plaster",
+    "name": "Cloud Plaster",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Approved modern finish, 4 November 2026; neutral master and native game skirting/caps",
+    "sourceSha256": "62018f301ff2e85a2899ce99ad1442aa146ea38030f89b59d9595c065ea78183"
+  },
+  {
+    "id": "lw-fine_linen",
+    "name": "Fine Linen",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Approved modern finish, 4 November 2026; neutral master and native game skirting/caps",
+    "sourceSha256": "ad955a15e9fc47ce871d6233410d65b65f664168843bbbba2df4d530698ae7a0"
+  },
+  {
+    "id": "lw-microcement",
+    "name": "Microcement",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Approved modern finish, 4 November 2026; neutral master and native game skirting/caps",
+    "sourceSha256": "46d92a198b79d9c5e4e22ae99e207a4597a32bb8aef5a86e3177e62eaf267d7b"
+  },
+  {
+    "id": "lw-modern_fluted",
+    "name": "Modern Fluted",
+    "provider": "LittleWorlds original AI-assisted material",
+    "source": "Approved modern finish, 4 November 2026; neutral master and native game skirting/caps",
+    "sourceSha256": "4421f5a3d0b390d86e19080a802b0fd48a0d9314d1b12ed8dca8cf2403d1480b"
   }
 ]

@@ -1,3 +1,4 @@
+import {walls as modernWalls} from './modern-finishes.mjs';
 import {walls as tileWalls} from './tile-finishes.mjs';
 import {walls as buildingWalls,floors as buildingFloors} from './building-finishes.mjs';
 import {finishWallSurfaces} from './wall-finishing.mjs';
@@ -18,7 +19,7 @@ import {wallFaces,stairwellWallFaces} from './architecture.mjs';
 import {roomLayout} from './rooms.mjs';
 import {splitFace} from './face-order.mjs';
 export const NATIVE_ORIGIN={x:.165,z:-.1356};
-export const STUDIO_WALL_VARIANTS=Object.freeze({studio_plaster:'cc0-beige-wall-001',studio_stone:'cc0-plastered-stone-wall',studio_tile:'cc0-interior-tiles',studio_brick:'cc0-red-brick',studio_timber:'cc0-wood-planks-grey',studio_panel:'legacy-liberty',studio_masonry:'cc0-sandstone-blocks-05',studio_classic_brick:'cc0-red-brick-03',studio_sunflower:'lw-sunflower',studio_cosmic:'lw-cosmic',studio_clover:'lw-clover',studio_velvet:'lw-velvet',studio_orangery:'lw-orangery',studio_deco:'lw-deco',studio_glass:'lw-glass',studio_redlounge:'lw-redlounge',...Object.fromEntries([...approvedWalls,...buildingWalls,...tileWalls].map(m=>[m.gameId,m.id]))});
+export const STUDIO_WALL_VARIANTS=Object.freeze({studio_plaster:'cc0-beige-wall-001',studio_stone:'cc0-plastered-stone-wall',studio_tile:'cc0-interior-tiles',studio_brick:'cc0-red-brick',studio_timber:'cc0-wood-planks-grey',studio_panel:'legacy-liberty',studio_masonry:'cc0-sandstone-blocks-05',studio_classic_brick:'cc0-red-brick-03',studio_sunflower:'lw-sunflower',studio_cosmic:'lw-cosmic',studio_clover:'lw-clover',studio_velvet:'lw-velvet',studio_orangery:'lw-orangery',studio_deco:'lw-deco',studio_glass:'lw-glass',studio_redlounge:'lw-redlounge',...Object.fromEntries([...approvedWalls,...buildingWalls,...tileWalls,...modernWalls].map(m=>[m.gameId,m.id]))});
 export const STUDIO_FLOOR_VARIANTS=Object.freeze({studio_floor_oak:'cc0-woodfloor051',studio_floor_parquet:'cc0-laminate-floor-02',studio_floor_stone:'cc0-rock-tile-floor',studio_floor_marble:'cc0-marble-01',studio_floor_terracotta:'cc0-brown-floor-tiles',studio_floor_slate:'cc0-worn-tile-floor',studio_floor_grass:'legacy-grass',studio_floor_cinema:'lw-cinema',studio_floor_arcade:'lw-arcade',...Object.fromEntries([...approvedFloors,...buildingFloors].map(m=>[m.gameId,m.id]))});
 const escape=s=>String(s).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 const hash=async (text,encoding)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',encoding==='base64'?Uint8Array.from(atob(text),c=>c.charCodeAt(0)):new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
