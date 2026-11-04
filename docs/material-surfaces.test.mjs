@@ -53,3 +53,10 @@ test('wallpaper phase is continuous where perpendicular faces meet',()=>{
   assert.ok(Math.abs(phase(a,p)-phase(b,p))<1e-9);
  }
 });
+
+test('tiled wall ends retain the same vertical repeat as the face',()=>{
+ const material={period:2,verticalPeriod:2,fullHeight:true};
+ const vertices=[[0,-.5,0],[.12,-.5,0],[.12,-.5,270],[0,-.5,270]];
+ const basis=wallEndTextureBasis({axis:'x',x:0,z:0},vertices,0,material);
+ assert.equal(basis[0][2],wallPattern([[0,0,0],[0,1,0],[0,1,270]],project,null,material)[3]);
+});

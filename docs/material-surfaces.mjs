@@ -53,7 +53,8 @@ export function wallEndTextureBasis(w,vertices,rotation,material={}){
  const faceFixed=(axis===0?w.x:w.z)-.5+side*.06;
  const startPhase=material?.fullHeight?end+faceFixed+1:end+.5;
  const phase=((startPhase%repeat)+repeat)%repeat;
- const H=material?.fullHeight?3.5*Math.sqrt(2*64**2)*Math.cos(Math.PI/6):256;
+ const worldHeight=Math.sqrt(2*64**2)*Math.cos(Math.PI/6);
+ const H=Number.isFinite(material?.verticalPeriod)&&material.verticalPeriod>0?material.verticalPeriod*worldHeight:material?.fullHeight?3.5*worldHeight:256;
  const point=(u,h)=>{const p=[0,0,h];p[axis]=visible+(u-phase)*dir;p[along]=end;return p};
  return [point(0,H),point(period,H),point(0,0)];
 }

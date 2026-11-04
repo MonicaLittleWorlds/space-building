@@ -7,7 +7,7 @@ const cache=new Map(),pickers=[];
 const esc=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
 export function styleThumbnail(kind,value,span=1){
  if(kind==='fence'&&isModelFence(value))return modelFenceThumbnail(value);
- if(kind==='wall'){const m=kit.wallMaterials.find(m=>m.id===value);if(m?.texture)return m.texture;}
+ if(kind==='wall'){const m=kit.wallMaterials.find(m=>m.id===value);if(m?.texture)return m.previewTexture||m.texture;}
  if(kind==='floor')return kit.floorMaterials.find(m=>m.id===value)?.texture||`assets/floor-${value}-1x1.png`;
  const key=kind+':'+value+':'+span;if(cache.has(key))return cache.get(key);
  let faces;
