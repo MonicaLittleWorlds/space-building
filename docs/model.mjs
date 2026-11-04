@@ -1,28 +1,28 @@
+import kit from './kit.mjs';
 export const key = (x,z) => `${x},${z}`;
 export const nodeKey = p => `${p.level}:${p.x},${p.z}`;
 export const edgeKey = e => `${e.axis}:${e.x},${e.z}`;
 export const levelOf = (p,id) => p.levels.find(l=>l.id===id);
 export function blankProject() {
-  return {format:'lw-space-studio',version:1,name:'Untitled LW space',levels:[{id:'floor-1',name:'Ground floor',tiles:{},walls:{},items:[]}],stairs:[],spawn:null};
+  return {format:'lw-space-studio',version:1,name:'Untitled LW space',exteriorFinish:'cc0-beige-wall-001',groundLot:{x:0,z:0,width:24,depth:24},levels:[{id:'floor-1',name:'Ground floor',tiles:{},walls:{},items:[]}],stairs:[],spawn:null};
 }
 export function demoProject() {
-  const p=blankProject(); p.name='The blank-slate workshop';
+  const p=blankProject(); delete p.groundLot; delete p.exteriorFinish; p.name='The blank-slate workshop';
   p.levels.push({id:'floor-2',name:'Upper floor',tiles:{},walls:{},items:[]});
   for(const [i,l] of p.levels.entries()) {
     l.rooms=[{id:'main-room',name:'Main room',kind:'indoor',x:0,z:0,width:9,depth:7}];
     for(let x=0;x<9;x++) for(let z=0;z<7;z++) {
-      if(i===1&&x>2&&x<6&&z>2&&z<5) continue;
       l.tiles[key(x,z)]={walk:true,place:true};
     }
-    for(let x=0;x<9;x++) l.walls[edgeKey({axis:'z',x,z:0})]={axis:'z',x,z:0,kind:'wall',collapse:true,mount:true};
-    for(let z=0;z<7;z++) l.walls[edgeKey({axis:'x',x:0,z})]={axis:'x',x:0,z,kind:'wall',collapse:true,mount:true};
+    for(let x=0;x<9;x++) for(const z of [0,7]) l.walls[edgeKey({axis:'z',x,z})]={axis:'z',x,z,kind:'wall',collapse:true,mount:true};
+    for(let z=0;z<7;z++) for(const x of [0,9]) l.walls[edgeKey({axis:'x',x,z})]={axis:'x',x,z,kind:'wall',collapse:true,mount:true};
   }
   p.levels[0].walls['x:4,3']={axis:'x',x:4,z:3,kind:'door',collapse:true,mount:false};
-  p.stairs=[{id:'stairs-1',a:{level:'floor-1',x:6,z:1,axis:'x',angle:90},b:{level:'floor-2',x:6,z:1,axis:'x',angle:90}}];
+  p.stairs=[{id:'stairs-1',a:{level:'floor-1',x:6,z:1,axis:'x',angle:90,width:2,style:'basic',depth:2,rise:1},b:{level:'floor-2',x:6,z:1,axis:'x',angle:90,width:2,style:'basic',depth:2,rise:1}}];
   p.spawn={level:'floor-1',x:2,z:4}; return p;
 }
 export function triggerCells(end) {return Array.from({length:end.width===1?1:2},(_,i)=>({...end,x:end.x+(end.axis==='x'?i:0),z:end.z+(end.axis==='z'?i:0)}));}
-export function stairFlightCells(end){if(!end.style)return [];const sign=end.rise===1?1:-1;return triggerCells(end).flatMap(c=>Array.from({length:end.depth||2},(_,i)=>i+1).map(d=>({...c,x:c.x+(end.axis==='z'?sign*d:0),z:c.z+(end.axis==='x'?sign*d:0)})));}
+export function stairFlightCells(end){const sign=end.rise===1?1:-1;return triggerCells(end).flatMap(c=>Array.from({length:end.depth||2},(_,i)=>i+1).map(d=>({...c,x:c.x+(end.axis==='z'?sign*d:0),z:c.z+(end.axis==='x'?sign*d:0)})));}
 export function stairSolidAt(p,n){return p.stairs.some(s=>[s.a,s.b].some(e=>stairFlightCells(e).some(c=>nodeKey(c)===nodeKey(n))));}
 export function portalAt(p,n) {for(const s of p.stairs) for(const [a,b] of [[s.a,s.b],[s.b,s.a]]) if(triggerCells(a).some(c=>nodeKey(c)===nodeKey(n))) return {id:s.id,from:a,to:b}; return null;}
 export function walkable(p,n) {const l=levelOf(p,n.level);return !!l?.tiles[key(n.x,n.z)]?.walk&&!l.items.some(i=>i.x===n.x&&i.z===n.z)&&!stairSolidAt(p,n);}
@@ -76,7 +76,10 @@ export function unreachableCells(p) {
 export function validate(p) {
   const issues=[];
   if(!p.spawn||!walkable(p,p.spawn)) issues.push('Set an entry point on walkable, unoccupied floor.');
-  for(const s of p.stairs) for(const e of [s.a,s.b]) if(triggerCells(e).some(c=>!walkable(p,c))) issues.push(`${s.id}: trigger cells need walkable, unoccupied floor.`);
+  for(const s of p.stairs) for(const e of [s.a,s.b]) {
+    if(triggerCells(e).some(c=>!walkable(p,c))) issues.push(`${s.id}: trigger cells need walkable, unoccupied floor.`);
+    if(stairFlightCells(e).some(c=>!levelOf(p,e.level)?.tiles[key(c.x,c.z)])) issues.push(`${s.id} (${levelOf(p,e.level)?.name||e.level}): the full stair flight needs floor tiles beneath it.`);
+  }
   for(const l of p.levels) for(const i of l.items) if(!l.tiles[key(i.x,i.z)]?.place) issues.push(`${l.name}: a test item is outside a placeable tile.`);
   const unreachable=unreachableCells(p).length;
   if(unreachable) issues.push(`${unreachable} walkable cells cannot be reached from entry.`);
@@ -89,6 +92,7 @@ export function parseProject(value) {
   const pos=n=>n&&Number.isSafeInteger(n.x)&&Number.isSafeInteger(n.z);
   if(!p||p.format!=='lw-space-studio'||p.version!==1||typeof p.name!=='string'||p.name.length>120||!Array.isArray(p.levels)||p.levels.length<1||!Array.isArray(p.stairs)) fail();
   if(p.daylight!==undefined){const d=p.daylight;if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).some(k=>!['azimuth','elevation','intensity'].includes(k))||!Number.isFinite(d.azimuth)||d.azimuth<0||d.azimuth>360||!Number.isFinite(d.elevation)||d.elevation<10||d.elevation>85||!Number.isFinite(d.intensity)||d.intensity<0||d.intensity>4)fail();}
+  if(p.groundLot!==undefined){const g=p.groundLot;if(!g||!pos(g)||!Number.isInteger(g.width)||!Number.isInteger(g.depth)||g.width<1||g.depth<1||g.width>128||g.depth>128)fail();}
   const ids=new Set();
   for(const l of p.levels) {
     if(!l||typeof l.id!=='string'||!/^[-\w]{1,80}$/.test(l.id)||ids.has(l.id)||typeof l.name!=='string'||l.name.length>80||!l.tiles||!l.walls||!Array.isArray(l.items)) fail();
@@ -98,21 +102,21 @@ export function parseProject(value) {
     for(const i of l.items){if(!pos(i))fail();if(i.light!==undefined){const a=i.light;if(!a||typeof a!=='object'||!/^#[a-f0-9]{6}$/i.test(a.color)||!Number.isFinite(a.height)||a.height<.2||a.height>3.3||!Number.isFinite(a.intensity)||a.intensity<0||a.intensity>40||!Number.isFinite(a.range)||a.range<1||a.range>20)fail();}}
     if(l.rooms!==undefined){
       if(!Array.isArray(l.rooms)||l.rooms.length>1000)fail();const roomIds=new Set();
-      for(const r of l.rooms){if(!pos(r)||typeof r.id!=='string'||r.id.length>80||roomIds.has(r.id)||typeof r.name!=='string'||r.name.length>80||!['indoor','outdoor'].includes(r.kind)||!Number.isSafeInteger(r.width)||r.width<1||!Number.isSafeInteger(r.depth)||r.depth<1||!Number.isSafeInteger(r.x+r.width)||!Number.isSafeInteger(r.z+r.depth))fail();roomIds.add(r.id);}
+      for(const r of l.rooms){if(!pos(r)||typeof r.id!=='string'||r.id.length>80||roomIds.has(r.id)||typeof r.name!=='string'||r.name.length>80||!['indoor','outdoor'].includes(r.kind)||!Number.isSafeInteger(r.width)||r.width<1||!Number.isSafeInteger(r.depth)||r.depth<1||!Number.isSafeInteger(r.x+r.width)||!Number.isSafeInteger(r.z+r.depth))fail();if(r.wallMaterial!==undefined&&!/^[a-z0-9_-]{1,64}$/.test(r.wallMaterial))fail();roomIds.add(r.id);}
     }
   }
   const sids=new Set(),occupied=new Set();
   for(const s of p.stairs) {if(!s||typeof s.id!=='string'||sids.has(s.id)||s.a?.level===s.b?.level) fail();sids.add(s.id);for(const e of [s.a,s.b]) {if(!pos(e)||!ids.has(e.level)||!['x','z'].includes(e.axis)||![0,90,180,270].includes(e.angle)) fail();appearance(e.appearance,['bodyColor','railColor']);if(e.width!==undefined&&![1,2].includes(e.width))fail();if(e.style!==undefined&&!['basic','masonry','timber','open','classic','iron'].includes(e.style))fail();if(e.depth!==undefined&&![2,3,4].includes(e.depth))fail();if(e.rise!==undefined&&![1,-1].includes(e.rise))fail();for(const c of triggerCells(e)) {if(!pos(c)||occupied.has(nodeKey(c))) fail();occupied.add(nodeKey(c));}}}
   if(p.spawn!==null&&(!pos(p.spawn)||!ids.has(p.spawn.level))) fail();
   if(p.decorGroups!==undefined){if(!Array.isArray(p.decorGroups)||p.decorGroups.length>10000)fail();const groups=new Set();for(const g of p.decorGroups){if(!g||!/^lw_[a-z0-9_]{1,80}$/.test(g.id)||groups.has(g.id)||typeof g.name!=='string'||g.name.length>80||!['floor','wall'].includes(g.kind)||typeof g.editable!=='boolean')fail();if((g.level!==undefined||g.area!==undefined)&&(!p.levels.some(l=>l.id===g.level)||!['inside','outside'].includes(g.area)||(g.area==='outside'&&g.level!==p.levels[0].id)))fail();if(g.color!==undefined&&!/^#[0-9a-f]{6}$/i.test(g.color))fail();groups.add(g.id);}for(const l of p.levels)for(const [kind,values] of [['floor',l.tiles],['wall',l.walls]])for(const v of Object.values(values)){if(v.decorGroup&&!p.decorGroups.some(g=>g.id===v.decorGroup&&g.kind===kind&&(!g.level||g.level===l.id)))fail();}}
-  for(const l of p.levels)for(const v of [...Object.values(l.tiles),...Object.values(l.walls)]){if(v.material!==undefined&&!/^[a-z0-9-]{1,64}$/.test(v.material))fail();if(v.piece!==undefined&&(typeof v.piece!=='string'||v.piece.length>50))fail();if(v.size!==undefined&&![1,2].includes(v.size))fail();if(v.facing!==undefined&&![1,-1].includes(v.facing))fail();appearance(v.appearance,['frameColor','glassColor']);if(v.doorStyle!==undefined&&!['square','wide','arch','craftsman','stone'].includes(v.doorStyle))fail();if(v.windowStyle!==undefined&&!['plain','divided','high','casement','colonial'].includes(v.windowStyle))fail();if(v.gate!==undefined&&(typeof v.gate!=='boolean'||v.kind!=='fence'))fail();if(v.fenceStyle!==undefined&&!['rail','picket','metal','privacy','slat','lattice','natural-picket','heritage-iron'].includes(v.fenceStyle))fail();}
-  validateExteriorFinishes(p);return structuredClone(p);
+  for(const l of p.levels)for(const v of [...Object.values(l.tiles),...Object.values(l.walls)]){if(v.material!==undefined&&!/^[a-z0-9_-]{1,64}$/.test(v.material))fail();if(v.piece!==undefined&&(typeof v.piece!=='string'||v.piece.length>50))fail();if(v.size!==undefined&&![1,2].includes(v.size))fail();if(v.facing!==undefined&&![1,-1].includes(v.facing))fail();appearance(v.appearance,['frameColor','glassColor']);if(v.doorStyle!==undefined&&!['square','wide','arch','craftsman','stone'].includes(v.doorStyle))fail();if(v.windowStyle!==undefined&&!['plain','divided','high','casement','colonial'].includes(v.windowStyle))fail();if(v.gate!==undefined&&(typeof v.gate!=='boolean'||v.kind!=='fence'))fail();if(v.fenceStyle!==undefined&&!['rail','picket','metal','privacy','slat','lattice','natural-picket','heritage-iron','hedge'].includes(v.fenceStyle))fail();}
+  if(p.exteriorFinish!==undefined&&!kit.wallMaterials.some(m=>m.id===p.exteriorFinish))throw Error('Unknown exterior finish.');validateExteriorFinishes(p);const result=structuredClone(p);for(const l of result.levels){for(const t of Object.values(l.tiles))t.material=kit.materialAliases.floor[t.material]||t.material;for(const w of Object.values(l.walls))for(const field of ['material','exteriorMaterial'])if(w[field])w[field]=kit.materialAliases.wall[w[field]]||w[field];for(const r of l.rooms||[])if(r.wallMaterial)r.wallMaterial=kit.materialAliases.wall[r.wallMaterial]||r.wallMaterial;}return result;
 }
 
 // Rotate one authored endpoint; the connected floor keeps its own layout.
 export function rotatedStairEnd(project,id,side,turn=1){
  const stair=project.stairs.find(s=>s.id===id),end=stair?.[side];
- if(!end||!['a','b'].includes(side)||!end.style)throw Error('Select a placed staircase first.');
+ if(!end||!['a','b'].includes(side))throw Error('Select a placed staircase first.');
  const directions=[['x',-1],['z',1],['x',1],['z',-1]];
  const index=directions.findIndex(([axis,rise])=>axis===end.axis&&rise===(end.rise===1?1:-1));
  const [axis,rise]=directions[(index+(turn===2?2:turn<0?3:1))%4];
@@ -120,13 +124,14 @@ export function rotatedStairEnd(project,id,side,turn=1){
  const other={...project,stairs:project.stairs.filter(s=>s.id!==id)};
  const level=levelOf(project,end.level);
  if(triggerCells(next).some(c=>!walkable(other,c)||portalAt(other,c)||nodeKey(project.spawn||{})===nodeKey(c)))throw Error('The rotated stair base needs free walkable floor.');
+ if(stairFlightCells(next).some(c=>!level.tiles[key(c.x,c.z)]))throw Error('The rotated stair flight needs floor tiles beneath it.');
  if(stairFlightCells(next).some(c=>portalAt(other,c)||stairSolidAt(other,c)||nodeKey(project.spawn||{})===nodeKey(c)||level.items.some(i=>i.x===c.x&&i.z===c.z)))throw Error('The rotated stairs would overlap another stair, an item, or the entry point.');
  return next;
 }
 
 export function validateExteriorFinishes(p){
  for(const l of p.levels)for(const w of Object.values(l.walls)){
-  if(w.exteriorMaterial!==undefined&&!/^[a-z0-9-]{1,64}$/.test(w.exteriorMaterial))throw Error('Invalid outside wall finish.');
+  if(w.exteriorMaterial!==undefined&&!/^[a-z0-9_-]{1,64}$/.test(w.exteriorMaterial))throw Error('Invalid outside wall finish.');
   if(w.exteriorDecorGroup&&!p.decorGroups?.some(g=>g.id===w.exteriorDecorGroup&&g.kind==='wall'&&g.area==='outside'&&g.level===l.id))throw Error('Invalid outside wall label.');
  }
 }

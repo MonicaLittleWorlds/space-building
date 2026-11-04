@@ -1,16 +1,39 @@
+import {finishWallSurfaces} from './wall-finishing.mjs';
+import {glassBlockCaps,glassBlockRelief} from './glass-block-surfaces.mjs';
 import kit from './kit.mjs';
 import {wallCorners,wallCornerFaces,wallSide,fenceFaces,fencePostOwners} from './geometry.mjs';
-import {shadeArchitecture} from './room-shading.mjs';
-import {surfaceMaterial} from './material-surfaces.mjs';
+import {shadeArchitecture,wallFaceAmbientShadows} from './room-shading.mjs';
+import {surfaceMaterial,wallEndTextureBasis} from './material-surfaces.mjs';
 import {meshBuilder,KIT,wallSurfaceEnds,wallRenderHeight,wallEnds,wallEndVisible,wallEndExposed,wallFacing,wallCapEnds,windowLayout,tintColor} from './geometry.mjs';
 import {cutProfile} from './rooms.mjs';
 
-export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={back:false,fill:'#d3d7c9',opacity:1},cutSelection=new Set()}={}){
+export function wallFaces(w,{level,rotation=0,corners=[],collapsed=false,paint={back:false,fill:'#d3d7c9',opacity:1},cutSelection=new Set(),profileOverride=null}={}){
+ const material=paint.material||w.material;
+ if(surfaceMaterial(material)?.structure==='hedge'){
+  if(w.kind==='door')return [];
+  // A replacement hedge is a closed solid, not an inset wall panel. Wall
+  // corner posts may belong to the adjoining room (and have another height
+  // or finish), so the hedge must own its complete ends and top itself.
+  const ends=wallEnds(w),t=KIT.wallThickness/2,axis=w.axis==='x'?0:1,along=1-axis;
+  const side=axis===0?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];
+  const h=collapsed?26:132,fill=paint.fill||'#345a26';
+  const junction=p=>corners.some(c=>Math.abs(c.x-p[0])<1e-7&&Math.abs(c.z-p[1])<1e-7);
+  const bounds=ends.map((p,i)=>p[along]+(i?1:-1)*(junction(p)?t:.014));
+  const point=(u,d,y)=>{const p=[0,0,y];p[axis]=ends[0][axis]+d;p[along]=u;return p;};
+  const attrs={fill,opacity:paint.opacity??1,'data-kind':'wall','data-level':level.id,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-texture':material,'data-collapsed':collapsed,'pointer-events':'none'};
+  const face=(vertices,part)=>({vertices,attrs:{...attrs,'data-part':part}});
+  const [lo,hi]=bounds;
+  const faces=[face([point(lo,side*t,0),point(hi,side*t,0),point(hi,side*t,h),point(lo,side*t,h)],'room-cut'),face([point(lo,-t,h),point(hi,-t,h),point(hi,t,h),point(lo,t,h)],'cap')];
+  for(let i=0;i<2;i++)if(wallEndVisible(w,i,rotation)){
+   const u=bounds[i];faces.push(face([point(u,-t,0),point(u,t,0),point(u,t,h),point(u,-t,h)],'end'));
+  }
+  return shadeArchitecture(finishWallSurfaces(faces,w,rotation,material),rotation);
+ }
  const active=level.id,faces=[],polygon=(vertices,attrs)=>faces.push({vertices,attrs}),collapsedWall=()=>collapsed,wallPaint=()=>paint;
 function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='door'?[]:corners),collapsed=collapsedWall(w),h=wallRenderHeight(w,collapsed);const {back,fill,opacity}=wallPaint(w),material=paint.material||w.material;
   const attrs={'data-kind':w.kind,'data-level':active,'data-collapsed':collapsed,'data-wall-x':w.x,'data-wall-z':w.z,'data-wall-axis':w.axis,'data-face':back?'back':'front',opacity,'pointer-events':'none'};
   const at=(u,y,d=0)=>{const side=w.axis==='x'?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];return [a[0]+(b[0]-a[0])*u+(w.axis==='x'?side*d:0),a[1]+(b[1]-a[1])*u+(w.axis==='z'?side*d:0),y];};
-  const flat=(u,v,low,high,color,overrides={})=>polygon([at(u,low),at(v,low),at(v,high),at(u,high)],{fill:color,stroke:back?'none':color,'stroke-width':.35,...attrs,...overrides});
+  const flat=(u,v,low,high,color,overrides={})=>polygon([at(u,low),at(v,low),at(v,high),at(u,high)],{fill:color,stroke:color,'stroke-width':1.2,'stroke-linejoin':'round',...attrs,...overrides});
   const panel=(u,v,low,high,color=fill,overrides={})=>{
     flat(u,v,low,high,color,{...(!back&&color===fill&&surfaceMaterial(material)?{'data-texture':material}:{}),...overrides});
     if(back||color!==fill||Object.keys(overrides).length||!['brick','stone','wood','panel'].includes(material))return;
@@ -76,7 +99,7 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
   };
   if(w.kind==='fence')return;
   if(collapsed){
-    const profile=cutProfile(w,level.walls,cutSelection),t=KIT.wallThickness/2;
+    const profile=profileOverride||cutProfile(w,level.walls,cutSelection),t=KIT.wallThickness/2;
     const normal=w.axis==='x'?[1,0]:[0,1],side=w.axis==='x'?[1,1,-1,-1][rotation]:[1,-1,-1,1][rotation];
     const at=(u,height,across=0)=>[a[0]+(b[0]-a[0])*u+normal[0]*across,a[1]+(b[1]-a[1])*u+normal[1]*across,height];
     const heightAt=u=>{for(let i=1;i<profile.length;i++)if(u<=profile[i][0]){const [v,h]=profile[i-1],[q,k]=profile[i];return h+(k-h)*(u-v)/(q-v);}return profile.at(-1)[1];};
@@ -86,10 +109,10 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
       const top=[[lo,heightAt(lo)],...profile.filter(([u])=>u>lo&&u<hi),[hi,heightAt(hi)]];
       polygon([at(lo,0),at(hi,0),...top.slice().reverse().map(([u,h])=>at(u,h))],{fill,stroke:fill,'stroke-width':.3,...attrs,'data-part':'room-cut',...(!back&&surfaceMaterial(material)?{'data-texture':material}:{})});
       for(let i=1;i<top.length;i++){const [u,h]=top[i-1],[v,k]=top[i];polygon([at(u,h),at(v,k),at(v,k,-side*2*t),at(u,h,-side*2*t)],{fill:tintColor(fill,1.10),...attrs,'data-part':'cap'});}
-      for(const [u,h] of [top[0],top.at(-1)])if(u>0&&u<1)polygon([at(u,0),at(u,0,-side*2*t),at(u,h,-side*2*t),at(u,h)],{fill:tintColor(fill,.70),...attrs,'data-part':'end'});
+      for(const [u,h] of [top[0],top.at(-1)])if(u>0&&u<1)polygon([at(u,0),at(u,0,-side*2*t),at(u,h,-side*2*t),at(u,h)],{fill:tintColor(fill,.70),...attrs,'data-part':'end',...(surfaceMaterial(material)?{'data-texture':material}:{})});
     }
     for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,level.walls)){
-      const h=heightAt(i);polygon([[p[0]-normal[0]*t,p[1]-normal[1]*t,0],[p[0]+normal[0]*t,p[1]+normal[1]*t,0],[p[0]+normal[0]*t,p[1]+normal[1]*t,h],[p[0]-normal[0]*t,p[1]-normal[1]*t,h]],{fill:tintColor(fill,.70),...attrs,'data-part':'end'});
+      const h=heightAt(i);polygon([[p[0]-normal[0]*t,p[1]-normal[1]*t,0],[p[0]+normal[0]*t,p[1]+normal[1]*t,0],[p[0]+normal[0]*t,p[1]+normal[1]*t,h],[p[0]-normal[0]*t,p[1]-normal[1]*t,h]],{fill:tintColor(fill,.70),...attrs,'data-part':'end',...(surfaceMaterial(material)?{'data-texture':material}:{})});
     }
     return;
   }
@@ -106,7 +129,13 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
       panel(L-.035,L,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#b3b7a9');panel(R,R+.035,0,w.doorStyle==='arch'?h*.66:top,back?fill:'#e8e2d2');
       const trim=back?fill:'#e5decb',reveal=back?fill:'#8e9285';
       const jambTop=w.doorStyle==='arch'?h*.66:top;
-      for(const [u,v] of [[L-.042,L-.007],[R+.007,R+.042]]){
+      // Keep the casing inside the opening's sprite footprint. Adjacent wall
+      // sprites otherwise paint over the far jamb when depth sorted in-game.
+      // Line the full wall thickness, including the underside of the lintel.
+      const thickness=KIT.wallThickness;
+      for(const u of [L,R])polygon([at(u,0),at(u,0,-thickness),at(u,jambTop,-thickness),at(u,jambTop)],{...attrs,fill:reveal,'data-part':'door-reveal'});
+      if(w.doorStyle!=='arch')polygon([at(L,top),at(R,top),at(R,top,-thickness),at(L,top,-thickness)],{...attrs,fill:reveal,'data-part':'door-soffit'});
+      for(const [u,v] of [[L+.025,L+.08],[R-.08,R-.025]]){
         moulding(u,v,0,jambTop,trim,.035,'door-casing');
         moulding(u<0?u-.009:u,u<0?v:v+.009,0,15,tintColor(trim,.92),.045,'door-plinth');
       }
@@ -190,9 +219,9 @@ function draw(w,corners=[]){const [a,b]=wallSurfaceEnds(w,rotation,w.kind==='doo
   const t=KIT.wallThickness/2,offset=w.axis==='x'?[t,0]:[0,t],quad=(p,q,low,high)=>[[p[0]-offset[0],p[1]-offset[1],low],[q[0]+offset[0],q[1]+offset[1],low],[q[0]+offset[0],q[1]+offset[1],high],[p[0]-offset[0],p[1]-offset[1],high]];
   const [capA,capB]=wallCapEnds(w,corners);
   polygon([[capA[0]-offset[0],capA[1]-offset[1],h],[capB[0]-offset[0],capB[1]-offset[1],h],[capB[0]+offset[0],capB[1]+offset[1],h],[capA[0]+offset[0],capA[1]+offset[1],h]],{fill:tintColor(fill,1.10),...attrs,'data-part':'cap'});
-  for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,level.walls))polygon(quad(p,p,w.kind==='door'?h*(w.doorStyle==='wide'?.88:w.doorStyle==='arch'?.83:.78):0,h),{fill:tintColor(fill,.70),...attrs,'data-part':'end'});
+  for(const [i,p] of wallEnds(w).entries())if(wallEndVisible(w,i,rotation)&&wallEndExposed(w,i,level.walls))polygon(quad(p,p,w.kind==='door'?h*(w.doorStyle==='wide'?.88:w.doorStyle==='arch'?.83:.78):0,h),{fill:tintColor(fill,.70),...attrs,'data-part':'end',...(surfaceMaterial(material)?{'data-texture':material}:{})});
 }
- draw(w,corners);return shadeArchitecture(faces,rotation);
+ draw(w,corners);faces.splice(0,faces.length,...finishWallSurfaces(faces,w,rotation,paint.material||w.material));for(const face of faces){if(face.attrs?.['data-part']==='end'&&['lw-moonbase','lw-orbit-lounge','moonbase','orbit-lounge'].includes(paint.material||w.material))face.attrs['data-texture-basis']=wallEndTextureBasis(w,face.vertices,rotation,surfaceMaterial(paint.material||w.material));}faces.push(...wallFaceAmbientShadows(faces,w,corners));return shadeArchitecture(glassBlockCaps(glassBlockRelief(faces,paint.material||w.material,rotation),paint.material||w.material),rotation);
 }
 
 // Static architecture seen through a stair opening belongs to the lower floor.

@@ -26,14 +26,14 @@ export async function openDaylightView(project,active,onSave,options={}){
  const textures=new Map(),materials=new Map(),loader=new THREE.TextureLoader();let content=new THREE.Group();scene.add(content);
  let settings=daylightSettings(project.daylight),rotation=0,span=20,center=new THREE.Vector3(),closed=false,frame=null,drag=null,projectionState=null,geometryKey='',geometryCenter=new THREE.Vector3();
  function draw(){if(closed||frame!==null)return;frame=requestAnimationFrame(()=>{frame=null;renderer.render(scene,camera);});}
- function texture(url,color=false){if(textures.has(url))return textures.get(url);const t=loader.load(new URL(url,import.meta.url).href,draw,undefined,()=>{status.textContent='A material failed to load. Showing its base color.';});t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=color?THREE.SRGBColorSpace:THREE.NoColorSpace;t.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());textures.set(url,t);return t;}
+ function texture(url,color=false,mirror=false,fullHeight=false){const key=JSON.stringify([url,color,mirror,fullHeight]);if(textures.has(key))return textures.get(key);const t=loader.load(new URL(url,import.meta.url).href,draw,undefined,()=>{status.textContent='A material failed to load. Showing its base color.';});t.wrapS=mirror?THREE.MirroredRepeatWrapping:THREE.RepeatWrapping;t.wrapT=mirror&&!fullHeight?THREE.MirroredRepeatWrapping:THREE.RepeatWrapping;t.colorSpace=color?THREE.SRGBColorSpace:THREE.NoColorSpace;t.anisotropy=Math.min(4,renderer.capabilities.getMaxAnisotropy());textures.set(key,t);return t;}
  function material(face){
   const m=face.material,category=face.kind==='floor'?'floor':'wall';
   const study=category==='floor'?(['wood','weathered-wood'].includes(m)?'timber':['grass','short-grass'].includes(m)?'grass':null):face.kind==='wall'&&['blank','plaster','brick'].includes(m)?'plaster':null;
   const existing=(category==='floor'?kit.floorMaterials:kit.wallMaterials).find(v=>v.id===m),maps=study?manifest[study]:existing?.texture?{map:existing.texture}:{};
   const key=JSON.stringify([study||m,face.sprite,face.sprite?null:maps.map?null:face.color,face.opacity]);if(materials.has(key))return materials.get(key);
   const props={color:maps.map||face.sprite?'#ffffff':face.color,roughness:.82,metalness:/metal/.test(face.part)?.55:0,side:THREE.DoubleSide,opacity:face.opacity,transparent:face.opacity<1};
-  for(const [k,v]of Object.entries(maps))if(['map','normalMap','roughnessMap'].includes(k))props[k]=texture(v,k==='map');
+  for(const [k,v]of Object.entries(maps))if(['map','normalMap','roughnessMap'].includes(k))props[k]=texture(v,k==='map',existing?.mirror,existing?.fullHeight);
   if(face.sprite){props.map=texture(face.sprite,true);props.alphaTest=.15;props.transparent=false;}
   const mat=new THREE.MeshStandardMaterial(props);if(study==='plaster'){mat.onBeforeCompile=shader=>{shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0) - (vec3(1.0)-diffuseColor.rgb)*(vec3(1.0)-vec3(.67,.58,.43)), .65);');};mat.customProgramCacheKey=()=>"lime-plaster-v1";}if(mat.normalMap)mat.normalScale.set(.45,.45);materials.set(key,mat);return mat;
  }
@@ -57,12 +57,12 @@ export async function openDaylightView(project,active,onSave,options={}){
   for(const [mat,g]of groups){const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(g.positions,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(g.uv,2));geometry.computeVertexNormals();const mesh=new THREE.Mesh(geometry,mat);mesh.castShadow=true;mesh.receiveShadow=true;content.add(mesh);}
   const box=new THREE.Box3().setFromObject(content);if(box.isEmpty()){center.set(0,0,0);span=10;}else{box.getCenter(center);const size=box.getSize(new THREE.Vector3());span=Math.max(size.x,size.z)*.85+size.y+3;}
   geometryCenter.copy(center);const extent=Math.max(10,span);Object.assign(sun.shadow.camera,{left:-extent,right:extent,top:extent,bottom:-extent,near:1,far:150});sun.shadow.camera.updateProjectionMatrix();
-  status.textContent=data.warnings.join(' ')||'Live shared materials · existing game export retained.';moveCamera();light();dialog.dataset.ready='true';
+  status.textContent=data.warnings.join(' ')||'Live WebGL preview. The native game uses the saved sun and wall lights with its own shadow rendering.';moveCamera();light();dialog.dataset.ready='true';
  }
  for(const input of dialog.querySelectorAll('[data-setting]')){input.value=settings[input.dataset.setting];input.oninput=()=>{settings={...settings,[input.dataset.setting]:Number(input.value)};light();};}
  levelSelect.onchange=loadLevel;dialog.querySelector('[data-action=cutaway]').onchange=loadLevel;
  dialog.querySelector('[data-action=rotate]').onclick=()=>{rotation=(rotation+1)%4;loadLevel();};dialog.querySelector('[data-action=fit]').onclick=loadLevel;
- dialog.querySelector('[data-action=save]').onclick=()=>{onSave(daylightSettings(settings));status.textContent='Lighting saved to this project. Game export still uses the native renderer.';};
+ dialog.querySelector('[data-action=save]').onclick=()=>{onSave(daylightSettings(settings));status.textContent='Lighting saved. Native game shadows can look different from this WebGL preview.';};
  if(!options.mount){host.onwheel=e=>{e.preventDefault();span=Math.max(2,Math.min(200,span*Math.exp(e.deltaY*.001)));resize();};
  host.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY};host.setPointerCapture(e.pointerId);};host.onpointerup=()=>{drag=null;};host.onpointermove=e=>{if(!drag)return;const dx=(e.clientX-drag.x)*span/host.clientHeight,dy=(e.clientY-drag.y)*span/host.clientHeight;const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);center.addScaledVector(right,-dx).addScaledVector(up,dy);drag={x:e.clientX,y:e.clientY};moveCamera();light();};
  }

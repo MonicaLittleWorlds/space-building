@@ -1,10 +1,12 @@
+import {ensureExteriorFinishes} from './exterior-finishes.mjs';
+import {ensureGroundLot} from './ground-lot.mjs';
 import {parseProject,validate,walkable,canPlace,blocked,triggerCells,key} from './model.mjs';
 import {decorManifest,ensureDecor} from './decor.mjs';
 import kit from './kit.mjs';
 
 // A portable integration contract; registration in the game is a separate step.
 export function buildSpace(input,{legacyDecor=false}={}){
- const project=parseProject(input);if(!legacyDecor)ensureDecor(project);const issues=validate(project);
+ const project=ensureExteriorFinishes(ensureGroundLot(parseProject(input)));if(!legacyDecor)ensureDecor(project);const issues=validate(project);
  for(const l of project.levels){
   if(!Object.keys(l.tiles).length)issues.push(`${l.name}: add floor tiles or remove this empty floor.`);
   for(const t of Object.values(l.tiles))if(!kit.floorMaterials.some(m=>m.id===(t.material||'blank')))issues.push(`${l.name}: unknown floor material.`);
@@ -26,6 +28,11 @@ export function openSpaceFile(raw){
  const value=typeof raw==='string'?JSON.parse(raw):raw;
  if(value?.format==='lw-space-build'){
   if(![1,2].includes(value.version)||value.requires!==`lw-studio-game-importer-v${value.version}`)throw Error('Unsupported LW build version.');
+  // Older V2 builds could omit stair style and therefore export a scene with
+  // walkable treads. Recover only their parsed project; never use old scene
+  // data as the editor's source of truth. Validation will flag bad footprints.
+  if(value.version===2&&value.project?.stairs?.some(s=>[s.a,s.b].some(e=>e?.style===undefined)))
+   return ensureDecor(parseProject(value.project));
   const checked=buildSpace(value.project,{legacyDecor:value.decor?.version===1});
   if(JSON.stringify(value.scene)!==JSON.stringify(checked.scene)||JSON.stringify(value.decor)!==JSON.stringify(checked.decor))throw Error('Build data does not match its project. Rebuild from the original project file.');
   return ensureDecor(checked.project);

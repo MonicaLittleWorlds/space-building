@@ -1,4 +1,5 @@
 import {shadeArchitecture} from './room-shading.mjs';
+import {hedgeFaces,hedgeJoins} from './hedge-geometry.mjs';
 import {isModelFence,modelFenceFaces} from './fence-models.mjs';
 // Original LW kit dimensions expressed in the game's logical grid.
 export const KIT={halfWidth:64,halfHeight:32,wallHeight:3.5*Math.sqrt(2*64**2)*Math.cos(Math.PI/6),wallThickness:.12,fenceHeight:92};
@@ -44,13 +45,18 @@ export function wallCornerFaces(corner,rotation=0){
   // inherits the connected wall on its own axis (including its decor group).
   const sx=[1,1,-1,-1][rotation%4],sz=[1,-1,-1,1][rotation%4];
   const owner=axis=>corner.walls.filter(w=>w.axis===axis).sort((a,b)=>wallRenderHeight(b)-wallRenderHeight(a))[0];
+  // Inside corners are already closed by the two wall planes. A square
+  // joining post must not paint extra strips over those planes. Its side is
+  // visible only when no perpendicular wall extends in front of it.
+  const covered=(axis,sign)=>corner.walls.some(w=>w.axis!==axis&&wallEnds(w).some(p=>(p[axis==='x'?0:1]-(axis==='x'?x:z))*sign>1e-7));
   return [
-    {part:'side-x',wall:owner('x'),vertices:[[x+sx*t,z-t,0],[x+sx*t,z+t,0],[x+sx*t,z+t,h],[x+sx*t,z-t,h]]},
-    {part:'side-z',wall:owner('z'),vertices:[[x-t,z+sz*t,0],[x+t,z+sz*t,0],[x+t,z+sz*t,h],[x-t,z+sz*t,h]]},
-    {part:'cap',wall:corner.walls[0],vertices:[[x-t,z-t,h],[x+t,z-t,h],[x+t,z+t,h],[x-t,z+t,h]]},
+    ...(!covered('x',sx)?[{part:'side-x',wall:owner('x'),vertices:[[x+sx*t,z-t,0],[x+sx*t,z+t,0],[x+sx*t,z+t,h],[x+sx*t,z-t,h]]}]:[]),
+    ...(!covered('z',sz)?[{part:'side-z',wall:owner('z'),vertices:[[x-t,z+sz*t,0],[x+t,z+sz*t,0],[x+t,z+sz*t,h],[x-t,z+sz*t,h]]}]:[]),
+    {part:'cap',wall:owner('x'),vertices:[[x-t,z-t,h],[x+t,z-t,h],[x+t,z+t,h]]},
+    {part:'cap',wall:owner('z'),vertices:[[x-t,z-t,h],[x+t,z+t,h],[x-t,z+t,h]]},
   ];
 }
-export function wallCapEnds(w,corners){const ends=wallEnds(w),t=KIT.wallThickness/2;return ends.map((p,i)=>{if(!corners.some(c=>c.x===p[0]&&c.z===p[1]))return p;const q=ends[1-i];return [p[0]+Math.sign(q[0]-p[0])*t,p[1]+Math.sign(q[1]-p[1])*t];});}
+export function wallCapEnds(w,corners){const ends=wallEnds(w),t=KIT.wallThickness/2,bleed=.014;return ends.map((p,i)=>{const q=ends[1-i],joined=corners.some(c=>c.x===p[0]&&c.z===p[1]);const inset=joined?t-bleed:-bleed;return [p[0]+Math.sign(q[0]-p[0])*inset,p[1]+Math.sign(q[1]-p[1])*inset];});}
 export function visibleLevelObjects(project,id){const l=project.levels.find(l=>l.id===id);return l?{walls:Object.values(l.walls),items:l.items}: {walls:[],items:[]};}
 // Volumetric construction parts, authored directly in LW grid units.
 export function meshBuilder(point,rotation,palette){
@@ -81,6 +87,7 @@ export function fenceFaces(w,rotation=0,posts=[true,true]){
  }),rotation);
 }
 function unlitFenceFaces(w,rotation=0,posts=[true,true]){
+ if(w.fenceStyle==='hedge')return fitFenceConnection(hedgeFaces(w,rotation,posts.hedgeJoins),w,posts);
  if(posts.insets)return fitFenceConnection(unlitFenceFaces(w,rotation,Array.from(posts)),w,posts);
   if(isModelFence(w.fenceStyle))return modelFenceFaces(w,rotation,posts);
   if(w.gate){
@@ -292,6 +299,7 @@ export function fencePostOwners(w,walls){const owners=wallEnds(w).map(p=>{
  // Keep the post outside a perpendicular wall, including its projecting cap.
  const offsets=wallEnds(w).map(p=>walls.some(o=>['wall','window'].includes(o.kind)&&o.axis!==w.axis&&wallEnds(o).every(q=>Math.abs(q[o.axis==='x'?0:1]-p[o.axis==='x'?0:1])<1e-8)&&(()=>{const e=wallEnds(o),i=o.axis==='x'?1:0;return p[i]>=Math.min(e[0][i],e[1][i])-1e-8&&p[i]<=Math.max(e[0][i],e[1][i])+1e-8;})())?KIT.wallThickness/2+.10:0);
  if(offsets.some(Boolean))Object.defineProperty(owners,'insets',{value:offsets});
+ if(w.fenceStyle==='hedge')Object.defineProperty(owners,'hedgeJoins',{value:hedgeJoins(w,walls)});
  return owners;
 }
 function fitFenceConnection(faces,w,posts){
@@ -316,7 +324,7 @@ export function stairLevels(project,stair){
 }
 export function stairwell(project,stair,rotation=0){
   const {lower,upper}=stairLevels(project,stair);
-  if(!upper.style)return null;
+  // Legacy projects omit style; stairFaces renders those as basic stairs too.
   const width=upper.width===1?1:2,depth=upper.depth||2,sign=upper.rise===1?1:-1;
   const point=(u,v,h=0)=>upper.axis==='x'?[upper.x-.5+u,upper.z+sign*(.5+v),h]:[upper.x+sign*(.5+v),upper.z-.5+u,h];
   const opening=[point(0,0),point(width,0),point(width,depth),point(0,depth)];
